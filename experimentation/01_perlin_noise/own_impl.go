@@ -9,12 +9,12 @@ type PerlinGenerator struct {
 	chunkSize   uint    // Tamaño del sector a crear
 	seed        int64   // Semilla usada
 	scale       float32 // Escala a la que reescalar al final
-	octaves     uint8   // Número de capas de ruido a usar
-	persistence float32 // Coef mult, reduce el peso de cada sucesiva octava de cara al resultado final, (Normalmente 0.5^Indice_capa)
-	lacunarity  float32 // Coef mult, reduce el periodo (Normalmente 0.5^Indice_capa))
+	octaves     uint    // Número de capas de ruido a usar
+	persistence uint    // Coef divisor, reduce el peso de cada sucesiva octava de cara al resultado final, (Normalmente 2^Indice_capa)
+	lacunarity  uint    // Coef divisor, reduce el periodo (Normalmente 2^Indice_capa))
 }
 
-func InitPerlinNoise1D(seed int64, chunkSize uint, scale float32, octaves uint8, persistence float32, lacunarity float32) *PerlinGenerator {
+func InitPerlinNoise1D(seed int64, chunkSize uint, scale float32, octaves uint, persistence uint, lacunarity uint) *PerlinGenerator {
 
 	return &PerlinGenerator{
 		chunkSize:   chunkSize,
@@ -26,21 +26,27 @@ func InitPerlinNoise1D(seed int64, chunkSize uint, scale float32, octaves uint8,
 	}
 }
 
-func PerlinNoiseChunk1D(config *PerlinGenerator, x int) float64 {
+func PerlinNoiseChunk1D(config *PerlinGenerator, x int) []float32 {
 	chunk := make([]float32, config.chunkSize)
 
 	for oct := range config.octaves {
 
-		actualAmplitude := float64(config.chunkSize) / math.Pow(2, float64(config.lacunarity))
+		actualPeriod := config.chunkSize / uint(math.Pow(float64(config.lacunarity), float64(oct)))
 
-		for j := range int(float64(config.octaves) / actualAmplitude) {
+		for sector := range config.chunkSize / actualPeriod {
+			slice := PerlinNoise1D(actualPeriod, int(sector)*int(actualPeriod), config.seed)
 
+			red_coeficient := float32(math.Pow(float64(config.persistence), float64(oct)))
+
+			for i := actualPeriod * sector; i < actualPeriod*(sector+1); i++ {
+				chunk[i] += slice[i%actualPeriod] / red_coeficient
+			}
 		}
 	}
-	return 0.0
+	return chunk
 }
 
-func PerlinNoise1D(period int, x int, seed int64) []float32 {
+func PerlinNoise1D(period uint, x int, seed int64) []float32 {
 	// El periodo determina la distancia entre los vectores generados
 	// La x es la coordenada de la casilla inicial del sector a generar, x final será x + amplitud
 	// La semilla se usa para el determinismo
@@ -48,7 +54,7 @@ func PerlinNoise1D(period int, x int, seed int64) []float32 {
 	values := make([]float32, period)
 
 	x_0 := getRandomGradient1D(seed, x)
-	x_n := getRandomGradient1D(seed, x+period)
+	x_n := getRandomGradient1D(seed, x+int(period))
 
 	//fmt.Printf("Debug: El valor del vector correspondiente a %v es %v\n", x, x_0)
 	//fmt.Printf("Debug: El valor del vector correspondiente a %v es %v\n", x+period, x_n)
