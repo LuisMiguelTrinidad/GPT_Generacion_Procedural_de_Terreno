@@ -10,11 +10,12 @@ import (
 
 const chunkSize = 1024
 
-func saveImage(imgArray [chunkSize][chunkSize]uint8, path string) {
-	img := image.NewGray(image.Rect(0, 0, chunkSize, chunkSize))
-	for i := range chunkSize {
-		for j := range chunkSize {
-			img.SetGray(i, j, color.Gray{Y: imgArray[i][j]})
+func saveImage(imgArray [][]float32, path string) {
+	img := image.NewGray(image.Rect(0, 0, len(imgArray), len(imgArray)))
+	for i := 0; i < len(imgArray); i++ {
+		for j := 0; j < len(imgArray[i]); j++ {
+			val := uint8((imgArray[i][j] + 1) * 128)
+			img.SetGray(i, j, color.Gray{Y: val})
 		}
 	}
 
