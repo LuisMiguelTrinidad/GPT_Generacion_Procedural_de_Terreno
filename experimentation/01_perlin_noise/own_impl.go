@@ -59,7 +59,7 @@ func PerlinNoiseChunk1D(cfg *PerlinGenerator, chunkIdx int) []float32 {
 			) / currentPeriod
 
 			var lft_value float32 = escProd1D(x_0, x_i)
-			var rgt_value float32 = escProd1D(1-x_i, x_n)
+			var rgt_value float32 = escProd1D(x_n, x_i-1)
 
 			var value float32 = lerp1D(lft_value, rgt_value, x_i)
 
@@ -84,7 +84,7 @@ func getRandomGradient1D(seed int64, x float32) float32 {
 	return r.Float32()*2 - 1
 }
 
-func PerlinNoiseChunk2D(cfg *PerlinGenerator, chunkIdx int, chunkIdy int) [][]float32 {
+func PerlinNoiseChunk2D(cfg *PerlinGenerator, chunkIdx int64, chunkIdy int64) [][]float32 {
 	chunk := make([][]float32, cfg.chunkSize)
 	for i := range chunk {
 		chunk[i] = make([]float32, cfg.chunkSize)
@@ -92,42 +92,44 @@ func PerlinNoiseChunk2D(cfg *PerlinGenerator, chunkIdx int, chunkIdy int) [][]fl
 
 	for octave := range cfg.octaves {
 		// Calculamos el periodo y el peso de la octava actual
-		var currentPeriod int = int(cfg.scale / float32(math.Pow(float64(cfg.lacunarity), float64(octave))))
+		var currentPeriod int64 = int64(cfg.scale / float32(math.Pow(float64(cfg.lacunarity), float64(octave))))
 		var currentWeight float32 = 1. / float32(math.Pow(float64(cfg.persistence), float64(octave)))
 
-		var global_x0 int = chunkIdx * int(cfg.chunkSize) / currentPeriod * currentPeriod
-		var global_x1 int = global_x0 + currentPeriod
-		var global_y0 int = chunkIdy * int(cfg.chunkSize) / currentPeriod * currentPeriod
-		var global_y1 int = global_y0 + currentPeriod
+		//Las coordenadas globales son las que definen el cuadrado de puntos con gradientes
+		var global_x0 int64 = chunkIdx * int64(cfg.chunkSize) / currentPeriod * currentPeriod
+		var global_x1 int64 = global_x0 + currentPeriod
+		var global_y0 int64 = chunkIdy * int64(cfg.chunkSize) / currentPeriod * currentPeriod
+		var global_y1 int64 = global_y0 + currentPeriod
 
-		for y := 0; y < int(cfg.chunkSize); y++ {
+		for y := int64(0); y < int64(cfg.chunkSize); y++ {
 			// Si hemos salido del cuadrado que definen los puntos con gradientes por abajo
 			if y >= global_y1 {
 				global_y0 += currentPeriod
 				global_y1 += currentPeriod
 			}
 
-			global_x0 = chunkIdx * int(cfg.chunkSize) / currentPeriod * currentPeriod
+			global_x0 = chunkIdx * int64(cfg.chunkSize) / currentPeriod * currentPeriod
 			global_x1 = global_x0 + currentPeriod
 
-			gx_0_0, gy_0_0 := getRandomGradient2D(cfg.seed, float32(global_x0), float32(global_y0)) // Esquina abajo izq
-			gx_1_0, gy_1_0 := getRandomGradient2D(cfg.seed, float32(global_x1), float32(global_y0)) // Esquina abajo der
-			gx_0_1, gy_0_1 := getRandomGradient2D(cfg.seed, float32(global_x0), float32(global_y1)) // Esquina arriba izq
-			gx_1_1, gy_1_1 := getRandomGradient2D(cfg.seed, float32(global_x1), float32(global_y1)) // Esquina arriba der
+			// Reseteamos las coordenadas globales de x para cada fila
+			gx_0_0, gy_0_0 := getRandomGradient2D(cfg.seed, global_x0, global_y0) // Esquina abajo izq
+			gx_1_0, gy_1_0 := getRandomGradient2D(cfg.seed, global_x1, global_y0) // Esquina abajo der
+			gx_0_1, gy_0_1 := getRandomGradient2D(cfg.seed, global_x0, global_y1) // Esquina arriba izq
+			gx_1_1, gy_1_1 := getRandomGradient2D(cfg.seed, global_x1, global_y1) // Esquina arriba der
 
-			//Hallamos el índice de y en relación con la distancia hacia abajo
+			//Hallamos el índice de y en relación con la distancia hacia abajo, operamos asumiendo que empezamos en 0 siempre
 			decimalY := float32(y%currentPeriod) / float32(currentPeriod)
 
-			for x := 0; x < int(cfg.chunkSize); x++ {
+			for x := int64(0); x < int64(cfg.chunkSize); x++ {
 				// Si hemos salido del cuadrado que definen los puntos con gradientes por la derecha
 				if x >= global_x1 {
 					global_x0 += currentPeriod
 					global_x1 += currentPeriod
 
-					gx_0_0, gy_0_0 = getRandomGradient2D(cfg.seed, float32(global_x0), float32(global_y0)) // Esquina abajo izq
-					gx_1_0, gy_1_0 = getRandomGradient2D(cfg.seed, float32(global_x1), float32(global_y0)) // Esquina abajo der
-					gx_0_1, gy_0_1 = getRandomGradient2D(cfg.seed, float32(global_x0), float32(global_y1)) // Esquina arriba izq
-					gx_1_1, gy_1_1 = getRandomGradient2D(cfg.seed, float32(global_x1), float32(global_y1)) // Esquina arriba der
+					gx_0_0, gy_0_0 = getRandomGradient2D(cfg.seed, global_x0, global_y0) // Esquina abajo izq
+					gx_1_0, gy_1_0 = getRandomGradient2D(cfg.seed, global_x1, global_y0) // Esquina abajo der
+					gx_0_1, gy_0_1 = getRandomGradient2D(cfg.seed, global_x0, global_y1) // Esquina arriba izq
+					gx_1_1, gy_1_1 = getRandomGradient2D(cfg.seed, global_x1, global_y1) // Esquina arriba der
 				}
 
 				// Hallamos el índice de x en relación con la distancia hacia la izquierda
@@ -147,12 +149,30 @@ func PerlinNoiseChunk2D(cfg *PerlinGenerator, chunkIdx int, chunkIdy int) [][]fl
 		}
 	}
 
+	// Normalizamos el chunk para que los valores estén entre -1 y 1
+	var max_value float32 = 0.
+	for octave := range cfg.octaves {
+		max_value += 1. / float32(math.Pow(float64(cfg.persistence), float64(octave)))
+	}
+	for y := range chunk {
+		for x := range chunk[y] {
+			chunk[y][x] /= max_value
+		}
+	}
 	return chunk
 }
+
+// Producto escalar de dos vectores en 2D
 func escProd2D(x_0, y_0, x_1, y_1 float32) float32 {
 	return (x_0*x_1 + y_0*y_1)
 }
 
+// funcion de suavizado, se mueve entre 0 y 1 para valores de t entre 0 y 1
+func fade2D(t float32) float32 {
+	return t * t * t * (t*(t*6-15) + 10)
+}
+
+// Interpolación bilineal en 2D,
 func lerp2D(b_l, b_r, t_l, t_r, x, y float32) float32 {
 	fade_x := fade2D(x)
 	fade_y := fade2D(y)
@@ -162,37 +182,45 @@ func lerp2D(b_l, b_r, t_l, t_r, x, y float32) float32 {
 	return bottom*(1-fade_y) + top*fade_y
 }
 
-func fade2D(t float32) float32 {
-	return t * t * t * (t*(t*6-15) + 10)
+// Función más ineficiente, usa el paquete "math/rand" para obtener un gradiente aleatorio
+func getRandomGradient2Drand(seed int64, x int64, y int64) (float32, float32) {
+	// Usar dos generadores aleatorios separados para x e y
+	r := rand.New(rand.NewSource(seed + x*83492791 + y*39916801)) // Numeros primos grandes para evitar patrones
+
+	index := r.Intn(8)
+
+	//  Obtener el gradiente correspondiente al índice aleatorio
+	grad := perlin2Dgradients[index]
+
+	return grad[0], grad[1]
 }
 
-func getRandomGradient2D(seed int64, x float32, y float32) (float32, float32) {
-	// Convertir coordenadas a enteros para evitar problemas de precisión flotante
-	ix := int64(x)
-	iy := int64(y)
+var perlin2Dgradients = [][]float32{
+	{0.00000000, -1.00000000}, {0.19509032, -0.98078528}, {0.38268343, -0.92387953}, {0.55557023, -0.83146961},
+	{0.70710678, -0.70710678}, {0.83146961, -0.55557023}, {0.92387953, -0.38268343}, {0.98078528, -0.19509032},
+	{1.00000000, 0.00000000}, {0.98078528, 0.19509032}, {0.92387953, 0.38268343}, {0.83146961, 0.55557023},
+	{0.70710678, 0.70710678}, {0.55557023, 0.83146961}, {0.38268343, 0.92387953}, {0.19509032, 0.98078528},
+	{0.00000000, 1.00000000}, {-0.19509032, 0.98078528}, {-0.38268343, 0.92387953}, {-0.55557023, 0.83146961},
+	{-0.70710678, 0.70710678}, {-0.83146961, 0.55557023}, {-0.92387953, 0.38268343}, {-0.98078528, 0.19509032},
+	{-1.00000000, 0.00000000}, {-0.98078528, -0.19509032}, {-0.92387953, -0.38268343}, {-0.83146961, -0.55557023},
+	{-0.70710678, -0.70710678}, {-0.55557023, -0.83146961}, {-0.38268343, -0.92387953}, {-0.19509032, -0.98078528},
+}
 
-	// Usar una función hash más robusta para combinar las coordenadas con la semilla
-	// Estos números primos grandes ayudan a distribuir mejor los valores
-	hash := seed
-	hash = hash*73856093 ^ ix
-	hash = hash*19349663 ^ iy
-	hash = hash * 83492791
+// Función hash mejorada para obtener un gradiente aleatorio en 2D, se puede optimizar más
+func getRandomGradient2D(seed int64, x int64, y int64) (float32, float32) {
+	// Función hash mejorada con mejor mezcla de bits
+	hash := uint64(seed)
+	hash ^= uint64(x) * 83492791 // Número primo grande
+	hash ^= uint64(y) * 39916801 // Número primo grande
 
-	// Usar el hash como semilla para el generador aleatorio
-	r := rand.New(rand.NewSource(hash))
+	// Mezclar mejor los bits con múltiples operaciones
+	hash = (hash ^ (hash >> 32)) * 73856093
+	hash = (hash ^ (hash >> 32)) * 19349663
+	hash ^= hash >> 32
 
-	// En lugar de generar un ángulo aleatorio, usar vectores predefinidos
-	// que son más eficientes y dan mejor distribución
-	gradients := [][]float32{
-		{1, 1}, {-1, 1}, {1, -1}, {-1, -1},
-		{1, 0}, {-1, 0}, {0, 1}, {0, -1},
-		{0.7071, 0.7071}, {-0.7071, 0.7071},
-		{0.7071, -0.7071}, {-0.7071, -0.7071},
-	}
-
-	// Seleccionar un gradiente basado en el valor aleatorio
-	gradientIndex := r.Intn(len(gradients))
-	gradient := gradients[gradientIndex]
+	// Usar los bits más significativos para mejor distribución
+	index := hash & 0x0000001F // Usa los 5 bits más significativos
+	gradient := perlin2Dgradients[index]
 
 	return gradient[0], gradient[1]
 }
