@@ -76,7 +76,8 @@ func escProd1D(x float32, y float32) float32 {
 }
 
 func lerp1D(x_0 float32, x_n float32, x_i float32) float32 {
-	return x_0*(1-x_i) + x_n*x_i
+	fade_x := fadequintic(x_i)
+	return x_0*(1-fade_x) + x_n*fade_x
 }
 
 func getRandomGradient1D(seed int64, x float32) float32 {
@@ -248,26 +249,48 @@ func escProd2D(x_0, y_0, x_1, y_1 float32) float32 {
 }
 
 // funcion de suavizado, se mueve entre 0 y 1 para valores de t entre 0 y 1
-func fade2D(t float32) float32 {
+func fadequintic(t float32) float32 {
 	return t * t * t * (t*(t*6-15) + 10)
+}
+
+func fadecubic(t float32) float32 {
+	return t * t * (3 - 2*t)
 }
 
 // Interpolación bilineal en 2D,
 func lerp2D(b_l, b_r, t_l, t_r, x, y float32) float32 {
-	fade_x := fade2D(x)
-	fade_y := fade2D(y)
+	fade_x := fadequintic(x)
+	fade_y := fadequintic(y)
 
 	bottom := b_l*(1-fade_x) + b_r*fade_x
 	top := t_l*(1-fade_x) + t_r*fade_x
 	return bottom*(1-fade_y) + top*fade_y
 }
 
+var perlin2Dgradients = [][]float32{
+	{0.00000000, -1.41421356}, {0.13861717, -1.40740374}, {0.27589938, -1.38703985}, {0.41052453, -1.35331800},
+	{0.54119610, -1.30656296}, {0.66665566, -1.24722501}, {0.78569496, -1.17587560}, {0.89716759, -1.09320187},
+	{1.00000000, -1.00000000}, {1.09320187, -0.89716759}, {1.17587560, -0.78569496}, {1.24722501, -0.66665566},
+	{1.30656296, -0.54119610}, {1.35331800, -0.41052453}, {1.38703985, -0.27589938}, {1.40740374, -0.13861717},
+	{1.41421356, 0.00000000}, {1.40740374, 0.13861717}, {1.38703985, 0.27589938}, {1.35331800, 0.41052453},
+	{1.30656296, 0.54119610}, {1.24722501, 0.66665566}, {1.17587560, 0.78569496}, {1.09320187, 0.89716759},
+	{1.00000000, 1.00000000}, {0.89716759, 1.09320187}, {0.78569496, 1.17587560}, {0.66665566, 1.24722501},
+	{0.54119610, 1.30656296}, {0.41052453, 1.35331800}, {0.27589938, 1.38703985}, {0.13861717, 1.40740374},
+	{0.00000000, 1.41421356}, {-0.13861717, 1.40740374}, {-0.27589938, 1.38703985}, {-0.41052453, 1.35331800},
+	{-0.54119610, 1.30656296}, {-0.66665566, 1.24722501}, {-0.78569496, 1.17587560}, {-0.89716759, 1.09320187},
+	{-1.00000000, 1.00000000}, {-1.09320187, 0.89716759}, {-1.17587560, 0.78569496}, {-1.24722501, 0.66665566},
+	{-1.30656296, 0.54119610}, {-1.35331800, 0.41052453}, {-1.38703985, 0.27589938}, {-1.40740374, 0.13861717},
+	{-1.41421356, 0.00000000}, {-1.40740374, -0.13861717}, {-1.38703985, -0.27589938}, {-1.35331800, -0.41052453},
+	{-1.30656296, -0.54119610}, {-1.24722501, -0.66665566}, {-1.17587560, -0.78569496}, {-1.09320187, -0.89716759},
+	{-1.00000000, -1.00000000}, {-0.89716759, -1.09320187}, {-0.78569496, -1.17587560}, {-0.66665566, -1.24722501},
+	{-0.54119610, -1.30656296}, {-0.41052453, -1.35331800}, {-0.27589938, -1.38703985}, {-0.13861717, -1.40740374},
+}
+
 // Función más ineficiente, usa el paquete "math/rand" para obtener un gradiente aleatorio
 func getRandomGradient2Drand(seed int64, x int64, y int64) (float32, float32) {
 	// Usar dos generadores aleatorios separados para x e y
 	r := rand.New(rand.NewSource(seed + x*83492791 + y*39916801)) // Numeros primos grandes para evitar patrones
-
-	index := r.Intn(32)
+	index := r.Intn(64)
 
 	//  Obtener el gradiente correspondiente al índice aleatorio
 	grad := perlin2Dgradients[index]
@@ -275,32 +298,16 @@ func getRandomGradient2Drand(seed int64, x int64, y int64) (float32, float32) {
 	return grad[0], grad[1]
 }
 
-var perlin2Dgradients = [32][2]float32{
-	{0.00000000, -1.00000000}, {0.19509032, -0.98078528}, {0.38268343, -0.92387953}, {0.55557023, -0.83146961},
-	{0.70710678, -0.70710678}, {0.83146961, -0.55557023}, {0.92387953, -0.38268343}, {0.98078528, -0.19509032},
-	{1.00000000, 0.00000000}, {0.98078528, 0.19509032}, {0.92387953, 0.38268343}, {0.83146961, 0.55557023},
-	{0.70710678, 0.70710678}, {0.55557023, 0.83146961}, {0.38268343, 0.92387953}, {0.19509032, 0.98078528},
-	{0.00000000, 1.00000000}, {-0.19509032, 0.98078528}, {-0.38268343, 0.92387953}, {-0.55557023, 0.83146961},
-	{-0.70710678, 0.70710678}, {-0.83146961, 0.55557023}, {-0.92387953, 0.38268343}, {-0.98078528, 0.19509032},
-	{-1.00000000, 0.00000000}, {-0.98078528, -0.19509032}, {-0.92387953, -0.38268343}, {-0.83146961, -0.55557023},
-	{-0.70710678, -0.70710678}, {-0.55557023, -0.83146961}, {-0.38268343, -0.92387953}, {-0.19509032, -0.98078528},
-}
-
 // Función hash mejorada para obtener un gradiente aleatorio en 2D, se puede optimizar más
 func getRandomGradient2D(seed int64, x int64, y int64) (float32, float32) {
 	// Función hash mejorada con mejor mezcla de bits
-	hash := seed
-	hash ^= x * 83492791 // Número primo grande
-	hash ^= y * 39916801 // Número primo grande
+	seed ^= x * 83492791 // Número primo grande
+	seed ^= y * 39916801 // Número primo grande
 
-	// Mezclar mejor los bits con múltiples operaciones
-	hash = (hash ^ (hash >> 32)) * 73856093
-	hash = (hash ^ (hash >> 32)) * 19349663
-	hash ^= hash >> 32
+	seed = (seed ^ (seed >> 16)) * 19349663
+	seed ^= seed >> 32
 
-	// Usar los bits más significativos para mejor distribución
-	index := hash & 0x0000001F // Usa los 5 bits más significativos
-	gradient := perlin2Dgradients[index]
+	gradient := perlin2Dgradients[seed&0x0000003F]
 
 	return gradient[0], gradient[1]
 }

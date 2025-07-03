@@ -38,7 +38,7 @@ func export_2d_array_to_ply(chunk [][]float32, scale float32, filename string) {
 	numVertices := len(chunk) * len(chunk[0])
 	numFaces := (len(chunk) - 1) * (len(chunk) - 1) * 2 // 2 triángulos por cuadrado
 
-	// HEader
+	// Header
 	header := []string{
 		"ply",
 		"format ascii 1.0",
@@ -58,8 +58,7 @@ func export_2d_array_to_ply(chunk [][]float32, scale float32, filename string) {
 	// Vértices
 	for y := range len(chunk) {
 		for x := range len(chunk) {
-			vertexData := fmt.Sprintf("%d %d %f\n", x, y, chunk[y][x]*scale)
-			file.WriteString(vertexData)
+			fmt.Fprintf(file, "%d %d %f\n", x, y, chunk[y][x]*scale)
 		}
 	}
 
