@@ -304,7 +304,7 @@ func getRandomGradient2D(seed int64, x int64, y int64) (float32, float32) {
 	seed ^= x * 83492791 // Número primo grande
 	seed ^= y * 39916801 // Número primo grande
 
-	seed = (seed ^ (seed >> 16)) * 19349663
+	seed ^= (seed * 19349663) >> 16
 	seed ^= seed >> 32
 
 	gradient := perlin2Dgradients[seed&0x0000003F]

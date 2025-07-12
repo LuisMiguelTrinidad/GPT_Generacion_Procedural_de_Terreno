@@ -3,9 +3,9 @@
 
 typedef struct {
     long long       seed;
-    unsigned int    chunkSize;
+    unsigned long   chunkSize;
     float           scale;
-    unsigned int    octaves;
+    unsigned long   octaves;
     float           persistence;
     float           lacunarity;
 } PerlinGenerator;

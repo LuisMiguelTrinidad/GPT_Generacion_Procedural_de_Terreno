@@ -1,5 +1,9 @@
 #include "perlin.h"
+#include "perlin_utils.h"
+
 #include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
 
 
 static const float perlin1Dgradients[64] = {
@@ -15,11 +19,11 @@ static const float perlin1Dgradients[64] = {
 
 // Especificamos inline para que el compilador pueda optimizar estas funciones
 // Especificamos static para que estas funciones sean privadas a este archivo
-inline static dotprod1D(float x, float y) {
+inline static float dotprod1D(float x, float y) {
     return x * y;
 }
 
-inline static lerp1D(float x_0, float x_n, float x_i) {
+inline static float lerp1D(float x_0, float x_n, float x_i) {
     return x_0 * (1 - x_i) + x_n * x_i;
 }
 
@@ -28,11 +32,45 @@ inline static float getRandomGradient1D(long seed, long x) {
     return perlin1Dgradients[rand() & 0x3F]; // & 0x3F para obtener un índice entre 0 y 63
 }
 
+inline static float getGradient1D(long seed, long x) {
+	seed ^= x * 83492791;
+	seed ^= (seed * 19349663) >> 16 ;
+	seed ^= seed >> 32;
+
+	return perlin1Dgradients[seed&0x3F];
+}
+
 // Implementación de la función pública
 float* PerlinNoise1D(PerlinGenerator* cfg, long chunkIdx) {
-    float *chunk = malloc(cfg->chunkSize * sizeof(float));
+    float *chunk = calloc(cfg->chunkSize, sizeof(float));
 
-    for (long i = 0; i < cfg->chunkSize; i++) {
-        float x_i = (float)i / cfg->chunkSize;
+    float total_persistence = 0.0f;
+    for (long octave = 0; octave < cfg->octaves; octave++) {
+        total_persistence += powf(cfg->persistence, -octave);
     }
+
+    for (long octave = 0; octave < cfg->octaves; octave++) {
+        float actual_scale = cfg->scale / pow(cfg->lacunarity, octave);
+        float actual_persistence = powf(cfg->persistence, -octave) / total_persistence;
+
+        for (long i = 0; i < cfg->chunkSize; i++) {
+            float x_i = fmodf((float)i / actual_scale, 1.0f);
+
+            long x_0 = (chunkIdx * cfg->chunkSize + i) / (actual_scale);
+            long x_1 = x_0 + 1;
+
+            float g_0 = getGradient1D(cfg->seed, x_0);
+            float g_1 = getGradient1D(cfg->seed, x_1);
+
+            float v_0 = dotprod1D(g_0, x_i);
+			float v_1 = dotprod1D(g_1, x_i-1.0f);
+            
+            float x_i_s = fadequintic(x_i);
+			float v_i = lerp1D(v_0, v_1, x_i_s);
+
+			chunk[i] += v_i * actual_persistence;
+        }
+    }
+    
+    return chunk;
 }

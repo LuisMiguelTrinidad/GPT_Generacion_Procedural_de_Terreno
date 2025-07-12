@@ -1,5 +1,5 @@
 #include "perlin.h"
-#include "perlin_utils.c"
+#include "perlin_utils.h"
 #include <stdlib.h>
 
 static const float perlin2Dgradients[64][2] = {
