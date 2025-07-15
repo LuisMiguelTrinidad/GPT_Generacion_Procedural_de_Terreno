@@ -2,7 +2,12 @@
 #include "perlin_utils.h"
 #include <stdlib.h>
 
-static const float perlin2Dgradients[64][2] = {
+typedef struct {
+	float x;
+	float y;
+} Vec2D;
+
+static const Vec2D perlin2Dgradients[64] = {
     { 0.00000000, -1.41421356}, { 0.13861717, -1.40740374}, { 0.27589938, -1.38703985}, { 0.41052453, -1.35331800},
 	{ 0.54119610, -1.30656296}, { 0.66665566, -1.24722501}, { 0.78569496, -1.17587560}, { 0.89716759, -1.09320187},
 	{ 1.00000000, -1.00000000}, { 1.09320187, -0.89716759}, { 1.17587560, -0.78569496}, { 1.24722501, -0.66665566},
@@ -20,3 +25,32 @@ static const float perlin2Dgradients[64][2] = {
 	{-1.00000000, -1.00000000}, {-0.89716759, -1.09320187}, {-0.78569496, -1.17587560}, {-0.66665566, -1.24722501},
 	{-0.54119610, -1.30656296}, {-0.41052453, -1.35331800}, {-0.27589938, -1.38703985}, {-0.13861717, -1.40740374},
 };
+
+
+inline static float dotprod2D(Vec2D a, Vec2D b) {
+    return (a.x * b.x + a.y * b.y);
+}
+
+inline static float lerp2D(float b_l, float b_r, float t_l, float t_r, Vec2D point) {
+	float top = (1 - point.x) * b_l + point.x * b_r; 
+	float bottom = (1 - point.x) * t_l + point.x * t_r;
+	return bottom * (1 - point.y) + top * point.y;
+}
+
+inline static Vec2D getRandomGradient2D(long seed, long x, long y) {
+    srand(seed + x * 83492791 + y * 19349663);
+    return perlin2Dgradients[rand() & 0x3F]; // & 0x3F para obtener un índice entre 0 y 63
+}
+
+inline static Vec2D getGradient2D(long seed, long x, long y) {
+	seed ^= x * 83492791;
+	seed ^= y * 39916801;
+	seed ^= (seed * 19349663) >> 16;
+	seed ^= seed >> 32;
+
+	return perlin2Dgradients[seed&0x3F];
+}
+
+float** PerlinNoiseChunk2D(PerlinGenerator* cfg, long chunkIdx, long chunkIdy) {
+
+}
