@@ -1,20 +1,22 @@
+#include "perlin.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include "perlin.h"
+
 
 int main() {
     // Configuración básica del generador
-    PerlinGenerator generator = InitPerlinNoise(
-        42,     // Semilla
-        256,    // Tamaño del chunk
-        128.0f, // Escala
-        8,      // Octavas
-        2.0f,   // Persistencia
-        2.0f    // Lacunaridad
-    );
+    PerlinGenerator generator = {
+        .seed = 42,             // Semilla
+        .chunkSize = 256,       // Tamaño del chunk
+        .scale = 128.0f,        // Escala
+        .octaves = 8,           // Octavas
+        .persistence = 2.0f,    // Persistencia
+        .lacunarity = 2.0f      // Lacunaridad
+    };
     
     // Generar ruido Perlin 1D
-    float* noiseValues = PerlinNoise1D(&generator, 1);
+    float* noiseValues = PerlinNoiseChunk1D(&generator, 1);
     
     for (int i = 0; i < generator.chunkSize; i++) {
         int numStars = (int)((noiseValues[i] + 1.0f) * 50.0f);

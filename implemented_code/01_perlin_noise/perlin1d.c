@@ -1,5 +1,4 @@
 #include "perlin.h"
-#include "perlin_utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,8 +39,16 @@ inline static float getGradient1D(long seed, long x) {
 	return perlin1Dgradients[seed&0x3F];
 }
 
+inline float fadequintic1D(float t) {
+    return t * t * t * (t*(t*6-15) + 10);
+}
+
+inline float fadecubic(float t) {
+    return t * t * (3 - 2*t);
+}
+
 // Implementación de la función pública
-float* PerlinNoise1D(PerlinGenerator* cfg, long chunkIdx) {
+float* PerlinNoiseChunk1D(PerlinGenerator* cfg, long chunkIdx) {
     float *chunk = calloc(cfg->chunkSize, sizeof(float));
 
     float total_persistence = 0.0f;
@@ -65,12 +72,11 @@ float* PerlinNoise1D(PerlinGenerator* cfg, long chunkIdx) {
             float v_0 = dotprod1D(g_0, x_i);
 			float v_1 = dotprod1D(g_1, x_i-1.0f);
             
-            float x_i_s = fadequintic(x_i);
+            float x_i_s = fadequintic1D(x_i);
 			float v_i = lerp1D(v_0, v_1, x_i_s);
 
 			chunk[i] += v_i * actual_persistence;
         }
     }
-    
     return chunk;
 }
