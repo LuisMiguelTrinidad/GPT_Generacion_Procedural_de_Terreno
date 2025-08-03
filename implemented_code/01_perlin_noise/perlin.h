@@ -8,10 +8,10 @@ typedef struct {
     unsigned long   octaves;
     float           persistence;
     float           lacunarity;
-} PerlinGenerator;
+} PerlinCfg;
 
-float* PerlinNoiseChunk1D(PerlinGenerator* cfg, long chunkIdx);
-float* PerlinNoiseChunk2D(PerlinGenerator* cfg, long chunkIdx, long chunkIdy);
+float* PerlinNoiseChunk1D(PerlinCfg* cfg, long chunkIdx);
+float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkIdx, long chunkIdy);
 
 
 #endif

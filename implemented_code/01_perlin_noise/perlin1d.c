@@ -18,7 +18,7 @@ static const float perlin1Dgradients[64] = {
 
 // Especificamos inline para que el compilador pueda optimizar estas funciones
 // Especificamos static para que estas funciones sean privadas a este archivo
-inline static float dotprod1D(float x, float y) {
+inline static float dotP1D(float x, float y) {
     return x * y;
 }
 
@@ -48,7 +48,7 @@ inline float fadecubic(float t) {
 }
 
 // Implementación de la función pública
-float* PerlinNoiseChunk1D(PerlinGenerator* cfg, long chunkIdx) {
+float* PerlinNoiseChunk1D(PerlinCfg* cfg, long chunkX) {
     float *chunk = calloc(cfg->chunkSize, sizeof(float));
 
     float total_persistence = 0.0f;
@@ -63,17 +63,17 @@ float* PerlinNoiseChunk1D(PerlinGenerator* cfg, long chunkIdx) {
         for (long i = 0; i < cfg->chunkSize; i++) {
             float x_i = fmodf((float)i / actual_scale, 1.0f);
 
-            long x_0 = (chunkIdx * cfg->chunkSize + i) / (actual_scale);
+            long x_0 = (chunkX * cfg->chunkSize + i) / (actual_scale);
             long x_1 = x_0 + 1;
 
             float g_0 = getGradient1D(cfg->seed, x_0);
             float g_1 = getGradient1D(cfg->seed, x_1);
 
-            float v_0 = dotprod1D(g_0, x_i);
-			float v_1 = dotprod1D(g_1, x_i-1.0f);
+            float v_0 = dotP1D(g_0, x_i);
+			float v_1 = dotP1D(g_1, x_i-1.0f);
             
-            float x_i_s = fadequintic1D(x_i);
-			float v_i = lerp1D(v_0, v_1, x_i_s);
+            float x_s = fadequintic1D(x_i);
+			float v_i = lerp1D(v_0, v_1, x_s);
 
 			chunk[i] += v_i * actual_persistence;
         }

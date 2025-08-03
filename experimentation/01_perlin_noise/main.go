@@ -7,9 +7,9 @@ import (
 
 func main() {
 	seed := int64(42)
-	width := uint(2048)
+	width := uint(4096)
 	scale := float32(1024)
-	octaves := uint(10)
+	octaves := uint(8)
 	persistence := float32(2)
 	lacunarity := float32(2)
 
