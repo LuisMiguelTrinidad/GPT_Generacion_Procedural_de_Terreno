@@ -100,15 +100,15 @@ int save_grayscale_png(const char *filename, float *image_data, int chunksize) {
 
 int main() {
     // Configuración básica del generador
-    PerlinCfg generator = {
-        .seed = 42,             // Semilla
-        .chunkSize = 4096,      // Tamaño del chunk
-        .scale = 1024.0f,       // Escala
-        .octaves = 8,           // Octavas
-        .persistence = 2.0f,    // Persistencia
-        .lacunarity = 2.0f      // Lacunaridad
-    };
-    
+    PerlinCfg* generator = initPerlinCfg(
+        42,         // Semilla
+        512,        // Tamaño del chunk
+        128,        // Escala
+        1,          // Octavas
+        2.0f,       // Persistencia
+        2.0f        // Lacunaridad
+    );
+    /*
     // Generar ruido Perlin 1D
     float* noiseValues = PerlinNoiseChunk1D(&generator, 1);
     
@@ -117,27 +117,26 @@ int main() {
         
         printf("[%4d]: %6.4f ", i, noiseValues[i]);
         
-        // Imprimir estrellas
         for (int j = 0; j < numStars; j++) {
             printf("*");
         }
         printf("\n");
     }
-    
     free(noiseValues);
+    */
 
     // Generar ruido Perlin 2D
     double start_time = get_time();
-    float* noiseValues2D = PerlinNoiseChunk2D(&generator, 0, 0);
+    float* noiseValues2D = PerlinNoiseChunk2D(generator, 0, 1);
     double end_time = get_time();
     printf("2D Perlin noise generated in %.3f seconds\n", end_time - start_time);
-    int total_points = generator.chunkSize * generator.chunkSize * generator.octaves;
+    int total_points = generator->chunkSize * generator->chunkSize * generator->octaves;
     double points_per_second = total_points / (end_time - start_time);
-    printf("%d points generated in %.8f seconds (%.2f million points/sec)\n", 
+    printf("%d points generated in %.8f seconds (%.4f million points/sec)\n", 
            total_points, end_time - start_time, points_per_second / 1000000.0);
 
 
-    save_grayscale_png("perlin_noise_2d.png", noiseValues2D, generator.chunkSize);
+    save_grayscale_png("perlin_noise_2d.png", noiseValues2D, generator->chunkSize);
 
     free(noiseValues2D);
     return 0;

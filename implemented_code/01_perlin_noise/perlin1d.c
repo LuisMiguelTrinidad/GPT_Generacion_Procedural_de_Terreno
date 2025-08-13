@@ -18,20 +18,20 @@ static const float perlin1Dgradients[64] = {
 
 // Especificamos inline para que el compilador pueda optimizar estas funciones
 // Especificamos static para que estas funciones sean privadas a este archivo
-inline static float dotP1D(float x, float y) {
+float dotP1D(float x, float y) {
     return x * y;
 }
 
-inline static float lerp1D(float x_0, float x_n, float x_i) {
+float lerp1D(float x_0, float x_n, float x_i) {
     return x_0 * (1 - x_i) + x_n * x_i;
 }
 
-inline static float getRandomGradient1D(long seed, long x) {
+float getRandomGradient1D(long seed, long x) {
     srand(seed + x * 83492791);
     return perlin1Dgradients[rand() & 0x3F]; // & 0x3F para obtener un índice entre 0 y 63
 }
 
-inline static float getGradient1D(long seed, long x) {
+float getGradient1D(long seed, long x) {
 	seed ^= x * 83492791;
 	seed ^= (seed * 19349663) >> 16 ;
 	seed ^= seed >> 32;
@@ -39,11 +39,11 @@ inline static float getGradient1D(long seed, long x) {
 	return perlin1Dgradients[seed&0x3F];
 }
 
-inline float fadequintic1D(float t) {
+float fadequintic1D(float t) {
     return t * t * t * (t*(t*6-15) + 10);
 }
 
-inline float fadecubic(float t) {
+float fadecubic1D(float t) {
     return t * t * (3 - 2*t);
 }
 

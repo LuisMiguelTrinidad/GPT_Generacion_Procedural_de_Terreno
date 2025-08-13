@@ -7,7 +7,7 @@ import (
 
 func main() {
 	seed := int64(42)
-	width := uint(4096)
+	width := uint(1024)
 	scale := float32(1024)
 	octaves := uint(8)
 	persistence := float32(2)
@@ -24,7 +24,7 @@ func main() {
 	fmt.Printf("Tiempo total = %v, %vM. puntos/s\n", elapsed2, float64(octaves*width*width)/1e6/elapsed2.Seconds())
 	saveImage(imgArray1, "results/cus_pkg_impl_optimized.png")
 	//saveImage(imgArray2, "results/cus_pkg_impl.png")
-	export_2d_array_to_ply(imgArray1, 2048, "results/cus_pkg_impl_1.ply")
+	export_2d_array_to_ply(imgArray1, 512, "results/cus_pkg_impl_1.ply")
 	//export_2d_array_to_ply(imgArray2, 128, "results/cus_pkg_impl_2.ply")
 	//El render 02 está generado usando los parámetros 42, 512, 256, 8, 2, 2
 }
