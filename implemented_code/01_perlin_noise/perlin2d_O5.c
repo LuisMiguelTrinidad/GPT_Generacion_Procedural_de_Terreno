@@ -107,12 +107,17 @@ PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale
     cfg->octaves = octaves;
     cfg->persistence = persistence;
     cfg->lacunarity = lacunarity;
+    cfg->smoothedValues = (float*)malloc(chunkSize * sizeof(float));
     
     for (int i = 0; i < PERLIN_TABLE_SIZE; i++) {
         int j = (i + rand()) & (PERLIN_TABLE_SIZE - 1);
         fV2D t = perlin2Dgradients[j];
         perlin2Dgradients[j] = perlin2Dgradients[i];
         perlin2Dgradients[i] = t;
+    }
+
+    for (int i = 0; i < cfg->scale; i++) {
+        cfg->smoothedValues[i] = fade1D(((float)i / cfg->scale));
     }
 
     return cfg;
@@ -124,10 +129,6 @@ float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
 	long scale_mask = cfg->scale - 1;
 	float inv_scale = 1.f / cfg->scale;
 
-	float* smooth_values = malloc(cfg->scale * sizeof(float));
-	for (int i = 0; i < cfg->scale; i++) {
-		smooth_values[i] = fade1D(((float)i / cfg->scale));
-	}
 	fV2D x_i_i = {0.f,0.f};
 
 	long x_0_0 = (chunkX * cfg->chunkSize) / (cfg->scale);
@@ -172,12 +173,11 @@ float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
         	float v_0_1 = dotP2D(g_0_1, (fV2D){x_i_i.x, x_i_i.y - 1.0f});		// Esquina superior izquierda				
 			float v_1_1 = dotP2D(g_1_1, (fV2D){x_i_i.x - 1.0f, x_i_i.y - 1.0f});// Esquina superior derecha
 
-			fV2D x_s_s = (fV2D){smooth_values[j&scale_mask],smooth_values[i&scale_mask]}; // Scale es una potencia de 2, por eso se puede hacer esto
+			fV2D x_s_s = (fV2D){cfg->smoothedValues[j&scale_mask],cfg->smoothedValues[i&scale_mask]}; // Scale es una potencia de 2, por eso se puede hacer esto
             float v_i_i = lerp2D(v_0_0, v_1_0, v_0_1, v_1_1, x_s_s);
 
 			chunk[rev_i * cfg->chunkSize + j] = v_i_i;
 		}
     }
-    free(smooth_values);
     return chunk;
 }

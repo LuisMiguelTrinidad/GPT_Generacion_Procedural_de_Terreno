@@ -99,45 +99,47 @@ int save_grayscale_png(const char *filename, float *image_data, int chunksize) {
 }
 
 int main() {
-    // Configuración básica del generador
     PerlinCfg* generator = initPerlinCfg(
         42,         // Semilla
-        512,        // Tamaño del chunk
+        256,        // Tamaño del chunk
         128,        // Escala
         1,          // Octavas
         2.0f,       // Persistencia
         2.0f        // Lacunaridad
     );
-    /*
-    // Generar ruido Perlin 1D
-    float* noiseValues = PerlinNoiseChunk1D(&generator, 1);
     
-    for (int i = 0; i < generator.chunkSize; i++) {
-        int numStars = (int)((noiseValues[i] + 1.0f) * 50.0f);
-        
-        printf("[%4d]: %6.4f ", i, noiseValues[i]);
-        
-        for (int j = 0; j < numStars; j++) {
-            printf("*");
+    double total_start_time = get_time();
+    int total_chunks = 0;
+    
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
+            double start_time = get_time();
+            float* noiseValues2D = PerlinNoiseChunk2D(generator, x, y);
+            double end_time = get_time();
+            
+            double chunk_time = end_time - start_time;
+            int chunk_points = generator->chunkSize * generator->chunkSize;
+            
+            printf("Chunk (%d, %d) generated in %.6f seconds\n", x, y, chunk_time);
+            printf("  %d points generated (%.2f million points/sec)\n", 
+                   chunk_points, chunk_points / chunk_time / 1000000.0);
+            
+            free(noiseValues2D);
+            total_chunks++;
         }
-        printf("\n");
     }
-    free(noiseValues);
-    */
-
-    // Generar ruido Perlin 2D
-    double start_time = get_time();
-    float* noiseValues2D = PerlinNoiseChunk2D(generator, 0, 1);
-    double end_time = get_time();
-    printf("2D Perlin noise generated in %.3f seconds\n", end_time - start_time);
-    int total_points = generator->chunkSize * generator->chunkSize * generator->octaves;
-    double points_per_second = total_points / (end_time - start_time);
-    printf("%d points generated in %.8f seconds (%.4f million points/sec)\n", 
-           total_points, end_time - start_time, points_per_second / 1000000.0);
-
-
-    save_grayscale_png("perlin_noise_2d.png", noiseValues2D, generator->chunkSize);
-
-    free(noiseValues2D);
+    
+    double total_time = get_time() - total_start_time;
+    int total_points = total_chunks * generator->chunkSize * generator->chunkSize;
+    
+    printf("\nTotal: %d chunks, %d points in %.6f seconds (%.2f million points/sec)\n",
+           total_chunks, total_points, total_time, total_points / total_time / 1000000.0);
+    
+    float* sample_chunk = PerlinNoiseChunk2D(generator, 0, 0);
+    save_grayscale_png("perlin_noise_2d.png", sample_chunk, generator->chunkSize);
+    free(sample_chunk);
+    free(generator->smoothedValues);
+    free(generator);
+    
     return 0;
 }
