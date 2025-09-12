@@ -88,14 +88,14 @@ float lerp2D(float b_l, float b_r, float t_l, float t_r, fV2D point) {
 }
 
 fV2D getGradient2D(long seed, long x, long y) {
-	seed ^= (x * 237147250358685349 << 32) ^ (y * 770279684386869113) ^ ((seed * 992405828216649089) >> 16);
+	seed ^= (x * 0x34A842AF1170EA0 >> 24) ^ (y * 0xAB0954AB5944F80 >> 24) ^ (seed * 0xDC5BBD7BFE17580 >> 24);
 	seed ^= seed >> 32;
 
 	return perlin2Dgradients[seed&(PERLIN_TABLE_SIZE - 1)];
 }
 
-float fade1D(float t) {
-	return t * t * (3 - 2 * t);
+float smoothstep(float t) {
+	return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
 PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale, unsigned long octaves, float persistence, float lacunarity) {
@@ -117,37 +117,48 @@ PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale
     }
 
     for (int i = 0; i < cfg->scale; i++) {
-        cfg->smoothedValues[i] = fade1D(((float)i / cfg->scale));
+        cfg->smoothedValues[i] = smoothstep(((float)i / cfg->scale));
     }
 
     return cfg;
 }
 
 float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
-    float *chunk = malloc(cfg->chunkSize * cfg->chunkSize * sizeof(float));
+    float* chunk = malloc(cfg->chunkSize * cfg->chunkSize * sizeof(float));
 	
 	long scale_mask = cfg->scale - 1;
 	float inv_scale = 1.f / cfg->scale;
 
-	fV2D x_i_i = {0.f,0.f};
+    long number_of_gradients_per_side = ((cfg->chunkSize / cfg->scale) + 1);
+    fV2D* gradients = (fV2D*)malloc(number_of_gradients_per_side * number_of_gradients_per_side * sizeof(fV2D));
+    for (long j = 0; j < number_of_gradients_per_side; j++) {
+        for (long i = 0; i < number_of_gradients_per_side; i++) {
+            long x = chunkX * number_of_gradients_per_side + i;
+            long y = chunkY * number_of_gradients_per_side + j;
 
+            gradients[j * number_of_gradients_per_side + i] = getGradient2D(cfg->seed, x, y);
+        }
+    }
+
+	fV2D x_i_i = {0.f,0.f};
     for (long i = 0; i < cfg->chunkSize; i++) {
 		x_i_i.y = (i * inv_scale) - floorf(i * inv_scale);
 
 		int rev_i = cfg->chunkSize - i - 1;
 		
+        long y_0_0 = i / (cfg->scale); //MAL, asume que chunkSize es multiplo de scale
+        long y_1_1 = y_0_0 + 1;
+        
 		for (long j = 0; j < cfg->chunkSize; j++) {
 			x_i_i.x = (j * inv_scale) - floorf(j * inv_scale);
 
-			long x_0_0 = (chunkX * cfg->chunkSize + j) / (cfg->scale);
+			long x_0_0 = j / (cfg->scale); //MAL, asume que chunkSize es multiplo de scale
 			long x_1_1 = x_0_0 + 1;
-			long y_0_0 = (chunkY * cfg->chunkSize + i) / (cfg->scale);
-			long y_1_1 = y_0_0 + 1;
 
-            fV2D g_0_0 = getGradient2D(cfg->seed, x_0_0, y_0_0); // Inf lft
-            fV2D g_1_0 = getGradient2D(cfg->seed, x_1_1, y_0_0); // Inf rgt
-        	fV2D g_0_1 = getGradient2D(cfg->seed, x_0_0, y_1_1); // Sup lft
-    		fV2D g_1_1 = getGradient2D(cfg->seed, x_1_1, y_1_1); // Sup rgt
+            fV2D g_0_0 = gradients[y_0_0 * number_of_gradients_per_side + x_0_0]; // Inf lft
+            fV2D g_1_0 = gradients[y_0_0 * number_of_gradients_per_side + x_1_1]; // Inf rgt
+            fV2D g_0_1 = gradients[y_1_1 * number_of_gradients_per_side + x_0_0]; // Sup lft
+            fV2D g_1_1 = gradients[y_1_1 * number_of_gradients_per_side + x_1_1]; // Sup rgt
 
 			float v_0_0 = dotP2D(g_0_0, x_i_i);									// Esquina inferior izquierda
             float v_1_0 = dotP2D(g_1_0, (fV2D){x_i_i.x - 1.0f, x_i_i.y});		// Esquina inferior derecha

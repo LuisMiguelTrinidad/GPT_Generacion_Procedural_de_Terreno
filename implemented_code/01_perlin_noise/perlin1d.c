@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <math.h>
 
+#define PERLIN_TABLE_SIZE 64
 
-static const float perlin1Dgradients[64] = {
+static const float perlin1Dgradients[PERLIN_TABLE_SIZE] = {
     -1.00000, -0.96875, -0.93750 ,-0.90625, -0.87500, -0.84375, -0.81250, -0.78125,
     -0.75000, -0.71875, -0.68750, -0.65625, -0.62500, -0.59375, -0.56250, -0.53125,
     -0.50000, -0.46875, -0.43750, -0.40625, -0.37500, -0.34375, -0.31250, -0.28125,
@@ -32,11 +33,10 @@ float getRandomGradient1D(long seed, long x) {
 }
 
 float getGradient1D(long seed, long x) {
-	seed ^= x * 83492791;
-	seed ^= (seed * 19349663) >> 16 ;
+	seed ^= (x * 237147250358685349 << 32) ^ ((seed * 992405828216649089) >> 16);
 	seed ^= seed >> 32;
 
-	return perlin1Dgradients[seed&0x3F];
+	return perlin1Dgradients[seed&(PERLIN_TABLE_SIZE - 1)];
 }
 
 float fadequintic1D(float t) {

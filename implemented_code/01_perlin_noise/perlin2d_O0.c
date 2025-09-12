@@ -30,7 +30,7 @@ fV2D getGradient2D(long seed, long x, long y) {
 	};
 }
 
-fV2D fade(fV2D t) {
+fV2D smoothstep(fV2D t) {
 	return (fV2D){
 		t.x * t.x * t.x * (t.x * (t.x * 6 - 15) + 10),
 		t.y * t.y * t.y * (t.y * (t.y * 6 - 15) + 10)
@@ -51,7 +51,7 @@ PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale
 }
 
 float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
-    float *chunk = malloc(cfg->chunkSize * cfg->chunkSize * sizeof(float));
+    float* chunk = malloc(cfg->chunkSize * cfg->chunkSize * sizeof(float));
 
 	float inv_scale = 1.f / cfg->scale;
 
@@ -80,7 +80,7 @@ float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
         	float v_0_1 = dotP2D(g_0_1, (fV2D){x_i_i.x, x_i_i.y - 1.0f});		// Esquina superior izquierda				
 			float v_1_1 = dotP2D(g_1_1, (fV2D){x_i_i.x - 1.0f, x_i_i.y - 1.0f});// Esquina superior derecha
 
-			fV2D x_s_s = fade(x_i_i);
+			fV2D x_s_s = smoothstep(x_i_i);
             float v_i_i = lerp2D(v_0_0, v_1_0, v_0_1, v_1_1, x_s_s);
 
 			chunk[rev_i * cfg->chunkSize + j] = v_i_i;
