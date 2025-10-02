@@ -99,9 +99,9 @@ int save_grayscale_png(const char *filename, float *image_data, int chunksize) {
 }
 
 int main() {
-    PerlinCfg* generator = initPerlinCfg(
+    PerlinCfg generator = initPerlinCfg(
         42,         // Semilla
-        512,        // Tamaño del chunk
+        256,        // Tamaño del chunk
         128,        // Escala
         1,          // Octavas
         2.0f,       // Persistencia
@@ -135,32 +135,38 @@ int main() {
     
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
+            float* noiseValues2D = PerlinNoiseChunk2D(generator, x, y);
+            free(noiseValues2D);
+        }
+    }
+
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
             double start_time = get_time();
             float* noiseValues2D = PerlinNoiseChunk2D(generator, x, y);
             double chunk_time = get_time() - start_time;
             
-            int chunk_points = generator->chunkSize * generator->chunkSize;
+            int chunk_points = generator.chunkSize * generator.chunkSize;
             printf("Chunk (%d, %d) generated in %.6f seconds\n", x, y, chunk_time);
             printf("  %d points generated (%.2f million points/sec)\n", 
                 chunk_points, chunk_points / chunk_time / 1000000.0);
                 
-            free(noiseValues2D);
             total_time += chunk_time;
             total_chunks++;
+            free(noiseValues2D);
         }
     }
-
-    int total_points = total_chunks * generator->chunkSize * generator->chunkSize;
+    
+    int total_points = total_chunks * generator.chunkSize * generator.chunkSize;
     
     printf("\nTotal: %d chunks, %d points in %.6f seconds (%.2f million points/sec)\n",
     total_chunks, total_points, total_time, total_points / total_time / 1000000.0);
     
-    float* sample_chunk = PerlinNoiseChunk2D(generator, 422342, 4234234);
-    save_grayscale_png("perlin_noise_2d.png", sample_chunk, generator->chunkSize);
+    float* sample_chunk = PerlinNoiseChunk2D(generator, 0, 0);
+    save_grayscale_png("perlin_noise_2d.png", sample_chunk, generator.chunkSize);
     
     free(sample_chunk);
-    free(generator->smoothedValues);
-    free(generator);
+    free(generator.smoothedValues);
     
     return 0;
 }

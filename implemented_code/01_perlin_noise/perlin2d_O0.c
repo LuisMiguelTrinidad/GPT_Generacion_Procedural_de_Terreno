@@ -2,14 +2,8 @@
 
 #include <stdlib.h>
 #include <math.h>
-#include <FL/math.h>
 
 #define PERLIN_TABLE_SIZE 256
-
-typedef struct {
-	float x;
-	float y;
-} fV2D;
 
 float dotP2D(fV2D a, fV2D b) {
     return (a.x * b.x + a.y * b.y);
@@ -21,9 +15,9 @@ float lerp2D(float b_l, float b_r, float t_l, float t_r, fV2D point) {
     return (1 - point.y) * bottom + point.y * top;
 }
 
-fV2D getGradient2D(long seed, long x, long y) {
+fV2D getGradient2D(uint64_t seed, int64_t x, int64_t y) {
 	srand(seed + x * 237147250358685349 + y * 770279684386869113);
-	float angle = ((float)rand() / RAND_MAX) * 2.0f * M_PI;
+	float angle = ((float)rand() / RAND_MAX) * 2.0f * 3.14159265358979323846f;
 	return (fV2D){
         cosf(angle),
         sinf(angle)
@@ -37,53 +31,54 @@ fV2D smoothstep(fV2D t) {
 	};
 }
 
-PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale, unsigned long octaves, float persistence, float lacunarity) {
-    PerlinCfg* cfg = (PerlinCfg*)malloc(sizeof(PerlinCfg));
-    
-	cfg->seed = seed;
-    cfg->chunkSize = chunkSize;
-    cfg->scale = scale;
-    cfg->octaves = octaves;
-    cfg->persistence = persistence;
-    cfg->lacunarity = lacunarity;
+PerlinCfg initPerlinCfg(uint64_t seed, uint64_t chunkSize, uint64_t scale, uint64_t octaves, float persistence, float lacunarity) {
+    PerlinCfg cfg = {
+        .seed           = seed,
+        .chunkSize      = chunkSize,
+        .scale          = scale,
+        .octaves        = octaves,
+        .persistence    = persistence,
+        .lacunarity     = lacunarity,
+        .smoothedValues = (float*)malloc(chunkSize * sizeof(float))
+    };
     
     return cfg;
 }
 
-float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
-    float* chunk = malloc(cfg->chunkSize * cfg->chunkSize * sizeof(float));
+float* PerlinNoiseChunk2D(PerlinCfg cfg, int64_t chunkX, int64_t chunkY) {
+    float* chunk = malloc(cfg.chunkSize * cfg.chunkSize * sizeof(float));
 
-	float inv_scale = 1.f / cfg->scale;
+	float inv_scale = 1.f / cfg.scale;
 
 	fV2D x_i_i = {0.f,0.f};
 
-    for (long i = 0; i < cfg->chunkSize; i++) {
+    for (uint64_t i = 0; i < cfg.chunkSize; i++) {
 		x_i_i.y = (i * inv_scale) - floorf(i * inv_scale);
 
-		int rev_i = cfg->chunkSize - i - 1;
+		uint64_t rev_i = cfg.chunkSize - i - 1;
 		
-		for (long j = 0; j < cfg->chunkSize; j++) {
+		for (uint64_t j = 0; j < cfg.chunkSize; j++) {
 			x_i_i.x = (j * inv_scale) - floorf(j * inv_scale);
 
-			long x_0_0 = (chunkX * cfg->chunkSize + j) / (cfg->scale);
-			long x_1_1 = x_0_0 + 1;
-			long y_0_0 = (chunkY * cfg->chunkSize + i) / (cfg->scale);
-			long y_1_1 = y_0_0 + 1;
+			uint64_t x_0_0 = (chunkX * cfg.chunkSize + j) / (cfg.scale);
+			uint64_t x_1_1 = x_0_0 + 1;
+			uint64_t y_0_0 = (chunkY * cfg.chunkSize + i) / (cfg.scale);
+			uint64_t y_1_1 = y_0_0 + 1;
 
-            fV2D g_0_0 = getGradient2D(cfg->seed, x_0_0, y_0_0); // Inf lft
-            fV2D g_1_0 = getGradient2D(cfg->seed, x_1_1, y_0_0); // Inf rgt
-        	fV2D g_0_1 = getGradient2D(cfg->seed, x_0_0, y_1_1); // Sup lft
-    		fV2D g_1_1 = getGradient2D(cfg->seed, x_1_1, y_1_1); // Sup rgt
+            fV2D g_0_0 = getGradient2D(cfg.seed, x_0_0, y_0_0); // Inf lft
+            fV2D g_1_0 = getGradient2D(cfg.seed, x_1_1, y_0_0); // Inf rgt
+        	fV2D g_0_1 = getGradient2D(cfg.seed, x_0_0, y_1_1); // Sup lft
+    		fV2D g_1_1 = getGradient2D(cfg.seed, x_1_1, y_1_1); // Sup rgt
 
 			float v_0_0 = dotP2D(g_0_0, x_i_i);									// Esquina inferior izquierda
-            float v_1_0 = dotP2D(g_1_0, (fV2D){x_i_i.x - 1.0f, x_i_i.y});		// Esquina inferior derecha
+    		float v_1_0 = dotP2D(g_1_0, (fV2D){x_i_i.x - 1.0f, x_i_i.y});		// Esquina inferior derecha
         	float v_0_1 = dotP2D(g_0_1, (fV2D){x_i_i.x, x_i_i.y - 1.0f});		// Esquina superior izquierda				
 			float v_1_1 = dotP2D(g_1_1, (fV2D){x_i_i.x - 1.0f, x_i_i.y - 1.0f});// Esquina superior derecha
 
 			fV2D x_s_s = smoothstep(x_i_i);
             float v_i_i = lerp2D(v_0_0, v_1_0, v_0_1, v_1_1, x_s_s);
 
-			chunk[rev_i * cfg->chunkSize + j] = v_i_i;
+			chunk[rev_i * cfg.chunkSize + j] = v_i_i;
 		}
     }
     

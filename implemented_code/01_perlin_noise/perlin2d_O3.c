@@ -1,82 +1,8 @@
 #include "perlin.h"
 
-# include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
-#define PERLIN_TABLE_SIZE 256
-
-typedef struct {
-	float x;
-	float y;
-} fV2D;
-
-fV2D perlin2Dgradients[PERLIN_TABLE_SIZE] = {
-    { 0.00000000, -1.41421356}, { 0.03470654, -1.41378763}, { 0.06939217, -1.41251008}, { 0.10403600, -1.41038169}, 
-    { 0.13861717, -1.40740374}, { 0.17311484, -1.40357802}, { 0.20750823, -1.39890684}, { 0.24177662, -1.39339300}, 
-    { 0.27589938, -1.38703985}, { 0.30985595, -1.37985119}, { 0.34362587, -1.37183135}, { 0.37718880, -1.36298518}, 
-    { 0.41052453, -1.35331800}, { 0.44361297, -1.34283563}, { 0.47643420, -1.33154439}, { 0.50896844, -1.31945107}, 
-    { 0.54119610, -1.30656296}, { 0.57309776, -1.29288784}, { 0.60465421, -1.27843392}, { 0.63584644, -1.26320992}, 
-    { 0.66665566, -1.24722501}, { 0.69706331, -1.23048882}, { 0.72705107, -1.21301143}, { 0.75660089, -1.19480337}, 
-    { 0.78569496, -1.17587560}, { 0.81431575, -1.15623953}, { 0.84244604, -1.13590698}, { 0.87006886, -1.11489021}, 
-    { 0.89716759, -1.09320187}, { 0.92372589, -1.07085502}, { 0.94972778, -1.04786313}, { 0.97515759, -1.02424005}, 
-    { 1.00000000, -1.00000000}, { 1.02424005, -0.97515759}, { 1.04786313, -0.94972778}, { 1.07085502, -0.92372589}, 
-    { 1.09320187, -0.89716759}, { 1.11489021, -0.87006886}, { 1.13590698, -0.84244604}, { 1.15623953, -0.81431575}, 
-    { 1.17587560, -0.78569496}, { 1.19480337, -0.75660089}, { 1.21301143, -0.72705107}, { 1.23048882, -0.69706331}, 
-    { 1.24722501, -0.66665566}, { 1.26320992, -0.63584644}, { 1.27843392, -0.60465421}, { 1.29288784, -0.57309776}, 
-    { 1.30656296, -0.54119610}, { 1.31945107, -0.50896844}, { 1.33154439, -0.47643420}, { 1.34283563, -0.44361297}, 
-    { 1.35331800, -0.41052453}, { 1.36298518, -0.37718880}, { 1.37183135, -0.34362587}, { 1.37985119, -0.30985595}, 
-    { 1.38703985, -0.27589938}, { 1.39339300, -0.24177662}, { 1.39890684, -0.20750823}, { 1.40357802, -0.17311484}, 
-    { 1.40740374, -0.13861717}, { 1.41038169, -0.10403600}, { 1.41251008, -0.06939217}, { 1.41378763, -0.03470654}, 
-    { 1.41421356,  0.00000000}, { 1.41378763,  0.03470654}, { 1.41251008,  0.06939217}, { 1.41038169,  0.10403600}, 
-    { 1.40740374,  0.13861717}, { 1.40357802,  0.17311484}, { 1.39890684,  0.20750823}, { 1.39339300,  0.24177662}, 
-    { 1.38703985,  0.27589938}, { 1.37985119,  0.30985595}, { 1.37183135,  0.34362587}, { 1.36298518,  0.37718880}, 
-    { 1.35331800,  0.41052453}, { 1.34283563,  0.44361297}, { 1.33154439,  0.47643420}, { 1.31945107,  0.50896844}, 
-    { 1.30656296,  0.54119610}, { 1.29288784,  0.57309776}, { 1.27843392,  0.60465421}, { 1.26320992,  0.63584644}, 
-    { 1.24722501,  0.66665566}, { 1.23048882,  0.69706331}, { 1.21301143,  0.72705107}, { 1.19480337,  0.75660089}, 
-    { 1.17587560,  0.78569496}, { 1.15623953,  0.81431575}, { 1.13590698,  0.84244604}, { 1.11489021,  0.87006886}, 
-    { 1.09320187,  0.89716759}, { 1.07085502,  0.92372589}, { 1.04786313,  0.94972778}, { 1.02424005,  0.97515759}, 
-    { 1.00000000,  1.00000000}, { 0.97515759,  1.02424005}, { 0.94972778,  1.04786313}, { 0.92372589,  1.07085502}, 
-    { 0.89716759,  1.09320187}, { 0.87006886,  1.11489021}, { 0.84244604,  1.13590698}, { 0.81431575,  1.15623953}, 
-    { 0.78569496,  1.17587560}, { 0.75660089,  1.19480337}, { 0.72705107,  1.21301143}, { 0.69706331,  1.23048882}, 
-    { 0.66665566,  1.24722501}, { 0.63584644,  1.26320992}, { 0.60465421,  1.27843392}, { 0.57309776,  1.29288784}, 
-    { 0.54119610,  1.30656296}, { 0.50896844,  1.31945107}, { 0.47643420,  1.33154439}, { 0.44361297,  1.34283563}, 
-    { 0.41052453,  1.35331800}, { 0.37718880,  1.36298518}, { 0.34362587,  1.37183135}, { 0.30985595,  1.37985119}, 
-    { 0.27589938,  1.38703985}, { 0.24177662,  1.39339300}, { 0.20750823,  1.39890684}, { 0.17311484,  1.40357802}, 
-    { 0.13861717,  1.40740374}, { 0.10403600,  1.41038169}, { 0.06939217,  1.41251008}, { 0.03470654,  1.41378763}, 
-    { 0.00000000,  1.41421356}, {-0.03470654,  1.41378763}, {-0.06939217,  1.41251008}, {-0.10403600,  1.41038169}, 
-    {-0.13861717,  1.40740374}, {-0.17311484,  1.40357802}, {-0.20750823,  1.39890684}, {-0.24177662,  1.39339300}, 
-    {-0.27589938,  1.38703985}, {-0.30985595,  1.37985119}, {-0.34362587,  1.37183135}, {-0.37718880,  1.36298518}, 
-    {-0.41052453,  1.35331800}, {-0.44361297,  1.34283563}, {-0.47643420,  1.33154439}, {-0.50896844,  1.31945107}, 
-    {-0.54119610,  1.30656296}, {-0.57309776,  1.29288784}, {-0.60465421,  1.27843392}, {-0.63584644,  1.26320992}, 
-    {-0.66665566,  1.24722501}, {-0.69706331,  1.23048882}, {-0.72705107,  1.21301143}, {-0.75660089,  1.19480337}, 
-    {-0.78569496,  1.17587560}, {-0.81431575,  1.15623953}, {-0.84244604,  1.13590698}, {-0.87006886,  1.11489021}, 
-    {-0.89716759,  1.09320187}, {-0.92372589,  1.07085502}, {-0.94972778,  1.04786313}, {-0.97515759,  1.02424005}, 
-    {-1.00000000,  1.00000000}, {-1.02424005,  0.97515759}, {-1.04786313,  0.94972778}, {-1.07085502,  0.92372589}, 
-    {-1.09320187,  0.89716759}, {-1.11489021,  0.87006886}, {-1.13590698,  0.84244604}, {-1.15623953,  0.81431575}, 
-    {-1.17587560,  0.78569496}, {-1.19480337,  0.75660089}, {-1.21301143,  0.72705107}, {-1.23048882,  0.69706331}, 
-    {-1.24722501,  0.66665566}, {-1.26320992,  0.63584644}, {-1.27843392,  0.60465421}, {-1.29288784,  0.57309776}, 
-    {-1.30656296,  0.54119610}, {-1.31945107,  0.50896844}, {-1.33154439,  0.47643420}, {-1.34283563,  0.44361297}, 
-    {-1.35331800,  0.41052453}, {-1.36298518,  0.37718880}, {-1.37183135,  0.34362587}, {-1.37985119,  0.30985595}, 
-    {-1.38703985,  0.27589938}, {-1.39339300,  0.24177662}, {-1.39890684,  0.20750823}, {-1.40357802,  0.17311484}, 
-    {-1.40740374,  0.13861717}, {-1.41038169,  0.10403600}, {-1.41251008,  0.06939217}, {-1.41378763,  0.03470654}, 
-    {-1.41421356,  0.00000000}, {-1.41378763, -0.03470654}, {-1.41251008, -0.06939217}, {-1.41038169, -0.10403600}, 
-    {-1.40740374, -0.13861717}, {-1.40357802, -0.17311484}, {-1.39890684, -0.20750823}, {-1.39339300, -0.24177662}, 
-    {-1.38703985, -0.27589938}, {-1.37985119, -0.30985595}, {-1.37183135, -0.34362587}, {-1.36298518, -0.37718880}, 
-    {-1.35331800, -0.41052453}, {-1.34283563, -0.44361297}, {-1.33154439, -0.47643420}, {-1.31945107, -0.50896844}, 
-    {-1.30656296, -0.54119610}, {-1.29288784, -0.57309776}, {-1.27843392, -0.60465421}, {-1.26320992, -0.63584644}, 
-    {-1.24722501, -0.66665566}, {-1.23048882, -0.69706331}, {-1.21301143, -0.72705107}, {-1.19480337, -0.75660089}, 
-    {-1.17587560, -0.78569496}, {-1.15623953, -0.81431575}, {-1.13590698, -0.84244604}, {-1.11489021, -0.87006886}, 
-    {-1.09320187, -0.89716759}, {-1.07085502, -0.92372589}, {-1.04786313, -0.94972778}, {-1.02424005, -0.97515759}, 
-    {-1.00000000, -1.00000000}, {-0.97515759, -1.02424005}, {-0.94972778, -1.04786313}, {-0.92372589, -1.07085502}, 
-    {-0.89716759, -1.09320187}, {-0.87006886, -1.11489021}, {-0.84244604, -1.13590698}, {-0.81431575, -1.15623953}, 
-    {-0.78569496, -1.17587560}, {-0.75660089, -1.19480337}, {-0.72705107, -1.21301143}, {-0.69706331, -1.23048882}, 
-    {-0.66665566, -1.24722501}, {-0.63584644, -1.26320992}, {-0.60465421, -1.27843392}, {-0.57309776, -1.29288784}, 
-    {-0.54119610, -1.30656296}, {-0.50896844, -1.31945107}, {-0.47643420, -1.33154439}, {-0.44361297, -1.34283563}, 
-    {-0.41052453, -1.35331800}, {-0.37718880, -1.36298518}, {-0.34362587, -1.37183135}, {-0.30985595, -1.37985119}, 
-    {-0.27589938, -1.38703985}, {-0.24177662, -1.39339300}, {-0.20750823, -1.39890684}, {-0.17311484, -1.40357802}, 
-    {-0.13861717, -1.40740374}, {-0.10403600, -1.41038169}, {-0.06939217, -1.41251008}, {-0.03470654, -1.41378763}
-};
+#include <stdint.h>
 
 float dotP2D(fV2D a, fV2D b) {
     return (a.x * b.x + a.y * b.y);
@@ -88,11 +14,20 @@ float lerp2D(float b_l, float b_r, float t_l, float t_r, fV2D point) {
     return (1 - point.y) * bottom + point.y * top;
 }
 
-fV2D getGradient2D(long seed, long x, long y) {
-	seed ^= (x * 0x34A842AF1170EA0 >> 24) ^ (y * 0xAB0954AB5944F80 >> 24) ^ (seed * 0xDC5BBD7BFE17580 >> 24);
-	seed ^= seed >> 32;
+fV2D getGradient2D(uint64_t seed, int64_t x, int64_t y) {
+    const uint64_t C1 = 0xbf58476d1ce4e5b9; // Wyhash64
+    const uint64_t C2 = 0xff51afd7ed558ccd; // MurMurHash3 finalizer
+    const uint64_t C3 = 0xc4ceb9fe1a85ec53; // MurMurHash3 finalizer
+    const uint64_t C4 = 0x9e3779b97f4a7c15; // MurMurHash3
 
-	return perlin2Dgradients[seed&(PERLIN_TABLE_SIZE - 1)];
+    // Abusamos fma para multiplicar y sumar en una sola instruccion
+    seed ^= (x * C1 + C3) ^ (y * C2 + C4);
+    // Usamos el intrínsico de rotación de bits para evitar pérdidas de entropía
+    seed *= seed + C3;
+    seed *= ROTATE_RIGHT(seed, 32) + C4;
+    seed ^= ROTATE_RIGHT(seed, 32);
+
+    return perlin2Dgradients[(seed & 0xFF)];
 }
 
 fV2D smoothstep(fV2D t) {
@@ -102,18 +37,19 @@ fV2D smoothstep(fV2D t) {
 	};
 }
 
-PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale, unsigned long octaves, float persistence, float lacunarity) {
-    PerlinCfg* cfg = (PerlinCfg*)malloc(sizeof(PerlinCfg));
+PerlinCfg initPerlinCfg(uint64_t seed, uint64_t chunkSize, uint64_t scale, uint64_t octaves, float persistence, float lacunarity) {
+    PerlinCfg cfg = {
+        .seed           = seed,
+        .chunkSize      = chunkSize,
+        .scale          = scale,
+        .octaves        = octaves,
+        .persistence    = persistence,
+        .lacunarity     = lacunarity,
+        .smoothedValues = (float*)malloc(chunkSize * sizeof(float))
+    };
     
-    cfg->seed = seed;
-    cfg->chunkSize = chunkSize;
-    cfg->scale = scale;
-    cfg->octaves = octaves;
-    cfg->persistence = persistence;
-    cfg->lacunarity = lacunarity;
-    
-    for (int i = 0; i < PERLIN_TABLE_SIZE; i++) {
-        int j = (i + rand()) & (PERLIN_TABLE_SIZE - 1);
+    for (int64_t i = 0; i < PERLIN_TABLE_SIZE; i++) {
+        int64_t j = (i + rand()) & (PERLIN_TABLE_SIZE - 1);
         fV2D t = perlin2Dgradients[j];
         perlin2Dgradients[j] = perlin2Dgradients[i];
         perlin2Dgradients[i] = t;
@@ -122,41 +58,46 @@ PerlinCfg* initPerlinCfg(long seed, unsigned long chunkSize, unsigned long scale
     return cfg;
 }
 
-float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
-    float* chunk = malloc(cfg->chunkSize * cfg->chunkSize * sizeof(float));
+fV2D* precalculate_gradients(PerlinCfg cfg, int64_t chunkX, int64_t chunkY, uint64_t n_grads_side) {
+    fV2D* gradients = (fV2D*)malloc(n_grads_side * n_grads_side * sizeof(fV2D));
+    for (uint64_t j = 0; j < n_grads_side; j++) {
+        for (uint64_t i = 0; i < n_grads_side; i++) {
+            int64_t x = chunkX * (n_grads_side -1) + i;
+            int64_t y = chunkY * (n_grads_side -1) + j;
 
-	float inv_scale = 1.f / cfg->scale;
-
-    long number_of_gradients_per_side = ((cfg->chunkSize / cfg->scale) + 1);
-    fV2D* gradients = (fV2D*)malloc(number_of_gradients_per_side * number_of_gradients_per_side * sizeof(fV2D));
-    for (long j = 0; j < number_of_gradients_per_side; j++) {
-        for (long i = 0; i < number_of_gradients_per_side; i++) {
-            long x = chunkX * number_of_gradients_per_side + i;
-            long y = chunkY * number_of_gradients_per_side + j;
-
-            gradients[j * number_of_gradients_per_side + i] = getGradient2D(cfg->seed, x, y);
+            gradients[j * n_grads_side + i] = getGradient2D(cfg.seed, x, y);
         }
     }
+    return gradients;
+}
 
-	fV2D x_i_i = {0.f,0.f};
-    for (long i = 0; i < cfg->chunkSize; i++) {
+float* PerlinNoiseChunk2D(PerlinCfg cfg, int64_t chunkX, int64_t chunkY) {
+    float* chunk = malloc(cfg.chunkSize * cfg.chunkSize * sizeof(float));
+
+    float inv_scale = 1.f / cfg.scale;
+
+    uint64_t n_grads_side = (cfg.chunkSize / cfg.scale) + 1;
+    fV2D* gradients = precalculate_gradients(cfg, chunkX, chunkY, n_grads_side);
+
+    fV2D x_i_i = {0.f,0.f};
+    for (uint64_t i = 0; i < cfg.chunkSize; i++) {
 		x_i_i.y = (i * inv_scale) - floorf(i * inv_scale);
 
-		int rev_i = cfg->chunkSize - i - 1;
+		uint64_t rev_i = cfg.chunkSize - i - 1;
 		
-        long y_0_0 = i / (cfg->scale); //MAL, asume que chunkSize es multiplo de scale
-        long y_1_1 = y_0_0 + 1;
+        int64_t y_0_0 = i / (cfg.scale); //MAL, asume que chunkSize es multiplo de scale
+        int64_t y_1_1 = y_0_0 + 1;
         
-		for (long j = 0; j < cfg->chunkSize; j++) {
+		for (uint64_t j = 0; j < cfg.chunkSize; j++) {
 			x_i_i.x = (j * inv_scale) - floorf(j * inv_scale);
 
-			long x_0_0 = j / (cfg->scale); //MAL, asume que chunkSize es multiplo de scale			
-            long x_1_1 = x_0_0 + 1;
+			int64_t x_0_0 = j / (cfg.scale); //MAL, asume que chunkSize es multiplo de scale			
+            int64_t x_1_1 = x_0_0 + 1;
 
-            fV2D g_0_0 = gradients[y_0_0 * number_of_gradients_per_side + x_0_0]; // Inf lft
-            fV2D g_1_0 = gradients[y_0_0 * number_of_gradients_per_side + x_1_1]; // Inf rgt
-            fV2D g_0_1 = gradients[y_1_1 * number_of_gradients_per_side + x_0_0]; // Sup lft
-            fV2D g_1_1 = gradients[y_1_1 * number_of_gradients_per_side + x_1_1]; // Sup rgt
+            fV2D g_0_0 = gradients[y_0_0 * n_grads_side + x_0_0]; // Inf lft
+            fV2D g_1_0 = gradients[y_0_0 * n_grads_side + x_1_1]; // Inf rgt
+            fV2D g_0_1 = gradients[y_1_1 * n_grads_side + x_0_0]; // Sup lft
+            fV2D g_1_1 = gradients[y_1_1 * n_grads_side + x_1_1]; // Sup rgt
 
 			float v_0_0 = dotP2D(g_0_0, x_i_i);									// Esquina inferior izquierda
             float v_1_0 = dotP2D(g_1_0, (fV2D){x_i_i.x - 1.0f, x_i_i.y});		// Esquina inferior derecha
@@ -166,7 +107,7 @@ float* PerlinNoiseChunk2D(PerlinCfg* cfg, long chunkX, long chunkY) {
 			fV2D x_s_s = smoothstep(x_i_i);
             float v_i_i = lerp2D(v_0_0, v_1_0, v_0_1, v_1_1, x_s_s);
 
-			chunk[rev_i * cfg->chunkSize + j] = v_i_i;
+			chunk[rev_i * cfg.chunkSize + j] = v_i_i;
 		}
     }
     free(gradients);
