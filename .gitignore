@@ -1,5 +1,7 @@
-safe.c
-implemented_code/01_perlin_noise/perlin_test_*
-experimentation/01_perlin_noise/results/
-experimentation/01_perlin_noise/input/
+01_PRNGs_y_hashing/.venv
+01_PRNGs_y_hashing/bin
+01_PRNGs_y_hashing/results
+
+02_Ruidos_pseudoaleatorios/output/
+02_Ruidos_pseudoaleatorios/bin/
 .vscode/
