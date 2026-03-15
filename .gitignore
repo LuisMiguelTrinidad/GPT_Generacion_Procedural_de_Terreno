@@ -5,3 +5,8 @@
 02_Ruidos_pseudoaleatorios/output/
 02_Ruidos_pseudoaleatorios/bin/
 .vscode/
+
+**/zig-out/
+**/.zig-cache/
+**/output/
+**/logs/
