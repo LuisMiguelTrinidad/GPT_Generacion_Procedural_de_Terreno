@@ -37,11 +37,7 @@ pub fn build(b: *std.Build) void {
 		.target = target,
 		.optimize = optimize,
 	});
-	const png_writer_mod = b.createModule(.{
-		.root_source_file = b.path("common/png_writer.zig"),
-		.target = target,
-		.optimize = optimize,
-	});
+
 	const cycle_counter_mod = b.createModule(.{
 		.root_source_file = b.path("common/cycle_counter.zig"),
 		.target = target,
@@ -50,10 +46,6 @@ pub fn build(b: *std.Build) void {
 
 	const imports_hashing = [_]std.Build.Module.Import{
 		.{ .name = "random", .module = hashing_mod },
-	};
-	const imports_pattern = [_]std.Build.Module.Import{
-		.{ .name = "random", .module = hashing_mod },
-		.{ .name = "png_writer", .module = png_writer_mod },
 	};
 	const imports_throughput = [_]std.Build.Module.Import{
 		.{ .name = "random", .module = hashing_mod },
@@ -81,7 +73,7 @@ pub fn build(b: *std.Build) void {
 		optimize, 
 		"pattern_64b", 
 		"tests/pattern_64b.zig", 
-		&imports_pattern
+		&imports_hashing
 	);
 	addTool(
 		b, 
