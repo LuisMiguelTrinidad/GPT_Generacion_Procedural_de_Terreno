@@ -1,4 +1,5 @@
 const arch_caps = @import("arch_caps.zig");
+const builtin = @import("builtin");
 
 extern fn @"llvm.readcyclecounter"() u64;
 extern fn @"llvm.x86.sse2.lfence"() void;
@@ -21,9 +22,9 @@ pub inline fn read() u64 {
 }
 
 inline fn fence() void {
-	switch (arch_caps.arch) {
+	switch (builtin.target.cpu.arch) {
 		.x86_64 => @"llvm.x86.sse2.lfence"(),
 		.aarch64 => @"llvm.aarch64.isb"(15),
-		.other => unreachable,
+		else => unreachable,
 	}
 }
