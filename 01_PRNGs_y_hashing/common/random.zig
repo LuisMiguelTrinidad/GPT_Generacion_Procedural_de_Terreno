@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const C1: u64 = 0xa0761d6478bd642f;
-const C2: u64 = 0xe7037ed1a0b428db;
-const C3: u64 = 0x8ebc6af09c88c6e3;
+const C1: u64 = 0xa0761d6478bd642f; //Wyrand
+const C2: u64 = 0xe7037ed1a0b428db; //Wyrand
+const C3: u64 = 0x8ebc6af09c88c6e3; //Wyrand
 
 var custom_hash_seed_v1: u64 = 0;
 //custom hash v1 no tiene inicializacion
@@ -53,14 +53,13 @@ pub inline fn custom_hash_v2_no_init(seed: u64, x: i64, y: i64) u64 {
 	const ux = @as(u64, @bitCast(x));
 	const uy = @as(u64, @bitCast(y));
 
-	// Magia negra
 	const mix_x = ux *% C3;
-	const mix_y = uy *% C2 + C1;
-	var hash = seed ^ mix_x +% (uy *% C1);
+	const mix_y = uy *% C2;
+	var hash = seed ^ mix_x;
 	
 	// Un único multiplicador masivo al final mezcla todo por igual
-	hash = rapidmix(hash ^ C2, mix_y);
-	return hash ^ @byteSwap(hash) ^ (hash >> 17);
+	hash = rapidmix(hash, mix_y);
+	return hash ^ @byteSwap(hash) ^ std.math.rotr(u64, hash, 17);
 }
 
 pub inline fn custom_hash_v2_full(seed: u64, x: i64, y: i64) u64 {
