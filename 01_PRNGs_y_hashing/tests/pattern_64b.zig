@@ -99,7 +99,7 @@ pub fn main() !void {
 			s, x, y, size, out_dir
 		),
 		.custom_v1 => try patternTest(
-			random.custom_hash_v1, gpa, 
+			random.custom_hash_v1_full, gpa, 
 			s, x, y, 
 			size, out_dir
 		),

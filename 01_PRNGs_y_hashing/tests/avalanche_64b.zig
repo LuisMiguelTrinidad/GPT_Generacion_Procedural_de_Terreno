@@ -197,7 +197,7 @@ pub fn main() !void {
 			entries, seed
 		),
 		.custom_v1 => try runAvalanche64b(
-			random.custom_hash_v1, 
+			random.custom_hash_v1_full, 
 			stdout, stderr, 
 			entries, seed
 		),
