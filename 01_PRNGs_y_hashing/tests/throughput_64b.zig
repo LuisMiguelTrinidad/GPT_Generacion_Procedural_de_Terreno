@@ -17,7 +17,7 @@ fn testController(
     stderr: anytype,
     reps: u64,
     batch_size: u64,
-    state: anytype,
+    base_state: anytype, // Recibimos el estado inicial
     data: []const i64,
 ) !void {
     _ = stderr;
@@ -25,18 +25,29 @@ fn testController(
     for (0..reps) |r| {
         const t0 = cycle_counter.read();
         var i: u64 = 0;
+        
+        // 1. Creamos los "carriles" de estado.
+        // Sumamos 'step' para que cada carril empiece con una semilla ligeramente distinta.
+        var lane_states: [unroll_factor]u64 = undefined;
+        inline for (0..unroll_factor) |step| {
+            lane_states[step] = base_state + step;
+        }
+
         while (i < batch_size) : (i += unroll_factor) {
             const p = i * 2;
             var results: [unroll_factor]u64 = undefined;
-            
+
             inline for (0..unroll_factor) |step| {
                 const idx = p + (step * 2);
-                results[step] = hash_fn(state, data[idx], data[idx + 1]);
+                lane_states[step] = hash_fn(lane_states[step], data[idx], data[idx + 1]);
+                results[step] = lane_states[step];
             }
-            
+
             inline for (0..unroll_factor) |step| {
                 std.mem.doNotOptimizeAway(results[step]);
             }
+
+            asm volatile ("" ::: .{ .memory = true });
         }
 
         const elapsed_cycles: f64 = @floatFromInt(cycle_counter.read() - t0);
@@ -112,8 +123,8 @@ pub fn main() !void {
 
     var prng: u64 = 237489;
     for (data_array) |*item| {
-        prng = random.xorshift64(prng);
-        item.* = @as(i64, @bitCast(random.xorshift64(prng)));
+        prng = random.splitmix64(prng);
+        item.* = @as(i64, @bitCast(random.splitmix64(prng)));
     }
 
     // Despachamos el hash al controlador de unroll

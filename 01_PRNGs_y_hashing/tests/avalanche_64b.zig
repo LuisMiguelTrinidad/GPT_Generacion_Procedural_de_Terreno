@@ -87,16 +87,16 @@ fn avalanche_worker(
 	comptime hash_fn: anytype,
 	ctx: *WorkerCtx
 ) void {
-	var rng_state = random.xorshift64(ctx.seed ^ 0x9E3779B97F4A7C15);
+	var rng_state = random.splitmix64(ctx.seed ^ 0x9E3779B97F4A7C15);
 
 	for (0..ctx.entries) |_| {
-		rng_state = random.xorshift64(rng_state);
+		rng_state = random.splitmix64(rng_state);
 		const x: i64 = @bitCast(rng_state);
 
-		rng_state = random.xorshift64(rng_state);
+		rng_state = random.splitmix64(rng_state);
 		const y: i64 = @bitCast(rng_state);
 
-		rng_state = random.xorshift64(rng_state);
+		rng_state = random.splitmix64(rng_state);
 		const s = rng_state;
 
 		const g1 = hash_fn(s, x, y);
@@ -188,7 +188,6 @@ pub fn main() !void {
 		stderr.print("ERROR: Hash desconocido. Opciones: custom_v2 | custom_v1 | rapidhash\n", .{}) catch {};
 		return error.InvalidHashChoice;
 	};
-
 
 	switch (hash_choice) {
 		.custom_v2 => try runAvalanche64b(

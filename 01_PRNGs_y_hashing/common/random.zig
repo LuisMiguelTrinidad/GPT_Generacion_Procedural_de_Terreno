@@ -35,11 +35,13 @@ pub inline fn custom_hash_init_v1(seed: u64) u64 {
 }
 
 pub inline fn custom_hash_v1_no_init(seed: u64, x: i64, y: i64) u64 {
+	const precalc = (@as(u64, @bitCast(x)) +% 17751895917091735967);
+
 	const hash = rapidmix(
-		seed ^ @as(u64, @bitCast(x)) *% C3, 
-		@as(u64, @bitCast(y)) *% C2
+		precalc ^ seed, 
+		(@as(u64, @bitCast(y)) +% precalc) 	
 	);
-	return hash ^ @byteSwap(hash) ^ std.math.rotr(u64, hash, 17);
+	return hash ^ (@byteSwap(hash) * std.math.rotl(u64, hash, 11));
 }
 
 pub inline fn custom_hash_v1_full(seed: u64, x: i64, y: i64) u64 {
@@ -79,7 +81,7 @@ pub inline fn custom_hash_init_v2(seed: u64) u64 {
 
 pub inline fn custom_hash_v2_no_init(seed: u64, x: i64, y: i64) u64 {
 	var mix_x = (@as(u64, @bitCast(x)) ^ seed);
-	var mix_y = (mix_x ^ @as(u64, @bitCast(y))) * C3;
+	var mix_y = (mix_x ^ @as(u64, @bitCast(y))) *% C3;
 	rapidmum(&mix_y, &mix_x);
 	// Un único multiplicador masivo al final mezcla todo por igual
 
@@ -138,5 +140,14 @@ pub fn xorshift64(state_in: u64) u64 {
 	state ^= state << 13;
 	state ^= state >> 7;
 	state ^= state << 17;
+
 	return state;
+}
+
+pub fn splitmix64(state_in: u64) u64 {
+  var z = state_in +% 0x9e3779b97f4a7c15;
+  z = (z ^ (z >> 30)) *% 0xbf58476d1ce4e5b9;
+  z = (z ^ (z >> 27)) *% 0x94d049bb133111eb;
+
+  return z ^ (z >> 31);
 }

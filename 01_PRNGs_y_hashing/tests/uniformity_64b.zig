@@ -19,14 +19,14 @@ const WorkerCtx = struct {
 };
 
 fn uniformity_worker(comptime hash_fn: anytype, ctx: *WorkerCtx) void {
-	var thread_rng = random.xorshift64(ctx.seed);
+	var thread_rng = random.splitmix64(ctx.seed);
 
 	for (0..ctx.samples) |_| {
-		thread_rng = random.xorshift64(thread_rng);
+		thread_rng = random.splitmix64(thread_rng);
 		const s = thread_rng;
-		thread_rng = random.xorshift64(thread_rng);
+		thread_rng = random.splitmix64(thread_rng);
 		const x: i64 = @bitCast(thread_rng);
-		thread_rng = random.xorshift64(thread_rng);
+		thread_rng = random.splitmix64(thread_rng);
 		const y: i64 = @bitCast(thread_rng);
 
 		const val = hash_fn(s, x, y);
@@ -138,7 +138,6 @@ fn testController(
 
 	var total: u64 = 0;
 	var start_log = start_log_in;
-	const start_point = random.xorshift64(seed);
 	
 	var i: u64 = 0;
 	while (total < max_samples) : (i += 1) {
@@ -150,7 +149,7 @@ fn testController(
 			target - total, 
 			&counts, 
 			histogram_16b, 
-			start_point + i
+			seed + i
 		);
 		total = target;
 
