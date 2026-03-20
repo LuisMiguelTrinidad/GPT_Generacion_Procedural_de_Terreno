@@ -78,16 +78,12 @@ pub inline fn custom_hash_init_v2(seed: u64) u64 {
 }
 
 pub inline fn custom_hash_v2_no_init(seed: u64, x: i64, y: i64) u64 {
-	const ux = @as(u64, @bitCast(x));
-	const uy = @as(u64, @bitCast(y));
-
-	var mix_x = ux ^ seed;
-	var hash = mix_x ^ uy;
-	rapidmum(&hash, &mix_x);
-	mix_x = @byteSwap(mix_x);
+	var mix_x = (@as(u64, @bitCast(x)) ^ seed);
+	var mix_y = (mix_x ^ @as(u64, @bitCast(y))) * C3;
+	rapidmum(&mix_y, &mix_x);
 	// Un único multiplicador masivo al final mezcla todo por igual
-	rapidmum(&mix_x, &hash);
-	return hash ^ mix_x;
+
+	return rapidmix(mix_x, mix_y);
 }
 
 pub inline fn custom_hash_v2_full(seed: u64, x: i64, y: i64) u64 {
