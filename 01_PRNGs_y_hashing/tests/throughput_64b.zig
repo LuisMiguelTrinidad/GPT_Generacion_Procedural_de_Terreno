@@ -26,8 +26,6 @@ fn testController(
         const t0 = cycle_counter.read();
         var i: u64 = 0;
         
-        // 1. Creamos los "carriles" de estado.
-        // Sumamos 'step' para que cada carril empiece con una semilla ligeramente distinta.
         var lane_states: [unroll_factor]u64 = undefined;
         inline for (0..unroll_factor) |step| {
             lane_states[step] = base_state + step;
@@ -68,7 +66,6 @@ fn dispatchUnroll(
     state: anytype,
     data: []const i64,
 ) !void {
-    // Al usar un switch con valores fijos, Zig instancia testController para cada caso
     switch (unroll_param) {
         1 => try testController(hash_fn, 1, stdout, stderr, reps, batch_size, state, data),
         2 => try testController(hash_fn, 2, stdout, stderr, reps, batch_size, state, data),
@@ -97,7 +94,6 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    // Añadimos el nuevo parámetro
     if (args.len != 6) {
         try stderr.print("USO: <reps> <batch_size> <seed> <hash> <unroll>\nHASH: custom_v2 | custom_v1 | rapidhash\nUNROLL: 2, 4, 6, 16, 32\n", .{});
         return error.InvalidArguments;
@@ -112,7 +108,6 @@ pub fn main() !void {
     };
     const unroll_param: u64 = try std.fmt.parseInt(u64, args[5], 10);
 
-    // Validación dinámica para que el batch_size coincida con el unroll elegido
     if (batch_size % unroll_param != 0) {
         try stderr.print("ERROR: Para evitar desbordamientos, batch_size DEBE ser multiplo del factor de unroll ({d}).\n", .{unroll_param});
         return error.InvalidBatchSize;
@@ -127,7 +122,6 @@ pub fn main() !void {
         item.* = @as(i64, @bitCast(random.splitmix64(prng)));
     }
 
-    // Despachamos el hash al controlador de unroll
     switch (hash_choice) {
         .custom_v2 => {
             const initialized_state = random.custom_hash_init_v2(seed);

@@ -35,15 +35,15 @@ pub inline fn custom_hash_init_v1(seed: u64) u64 {
 }
 
 pub inline fn custom_hash_v1_no_init(seed: u64, x: i64, y: i64) u64 {
-	const precalc = (@as(u64, @bitCast(x)) +% 17751895917091735967);
+  const precalc = (@as(u64, @bitCast(x)) +% 11811329173984144537);
 
-	const hash = rapidmix(
-		precalc ^ seed, 
-		(@as(u64, @bitCast(y)) +% precalc) 	
-	);
-	return hash ^ (@byteSwap(hash) * std.math.rotl(u64, hash, 11));
+  const hash = rapidmix(
+    precalc ^ seed, 
+    (@as(u64, @bitCast(y)) +% precalc) 	
+  );
+    
+  return @byteSwap(hash) ^ (hash + std.math.rotr(u64, @byteSwap(hash), 13));
 }
-
 pub inline fn custom_hash_v1_full(seed: u64, x: i64, y: i64) u64 {
 	return custom_hash_v1_no_init(custom_hash_init_v1(seed), x, y);
 }

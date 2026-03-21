@@ -83,4 +83,12 @@ pub fn build(b: *std.Build) void {
 		"tests/throughput_64b.zig", 
 		&imports_throughput
 	);
+	addTool(
+		b, 
+		target, 
+		optimize, 
+		"collisions_64b", 
+		"tests/collisions_64b.zig", 
+		&imports_hashing
+	);
 }
