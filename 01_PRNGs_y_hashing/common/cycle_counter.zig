@@ -7,7 +7,6 @@ extern fn @"llvm.aarch64.isb"(i32) void;
 
 const std = @import("std");	
 
-
 pub inline fn read() u64 {
 	comptime {
 		if (!arch_caps.has_cycle_counter) {

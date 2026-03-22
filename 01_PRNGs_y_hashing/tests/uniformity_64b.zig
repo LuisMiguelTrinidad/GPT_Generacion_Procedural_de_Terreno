@@ -25,12 +25,11 @@ fn uniformity_worker(comptime hash_fn: anytype, ctx: *WorkerCtx) void {
 		thread_rng = random.splitmix64(thread_rng);
 		const s = thread_rng;
 		thread_rng = random.splitmix64(thread_rng);
-		const x: i64 = @bitCast(thread_rng);
+		const x: u64 = thread_rng;
 		thread_rng = random.splitmix64(thread_rng);
-		const y: i64 = @bitCast(thread_rng);
+		const y: u64 = thread_rng;
 
 		const val = hash_fn(s, x, y);
-
 		for (0..64) |b| {
 			ctx.counts[b] += (val >> @as(u6, @intCast(b))) & 1;
 		}
@@ -67,8 +66,8 @@ fn runSamples(
 		@memset(local_hist, 0);
 
 		contexts[t] = .{
-			.samples = base + @intFromBool(@as(u64, @intCast(t)) < rem), //Manejo de remainder
-			.seed = global_seed ^ ((@as(u64, @intCast(t)) + 1) *% 0x9E3779B97F4A7C15),
+			.samples = base + @intFromBool(t < rem),
+			.seed = global_seed ^ ((t + 1) *% 0x9E3779B97F4A7C15),
 			.histogram_16b = local_hist,
 		};
 

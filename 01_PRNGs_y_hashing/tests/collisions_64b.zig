@@ -34,32 +34,26 @@ fn collision_worker(comptime hash_fn: anytype, ctx: *WorkerCtx) void {
 	for (0..ctx.number_of_seeds) |_| {
 		const seed = prng;
 		prng = random.xorshift64(prng);
-		const x = @as(i64, @bitCast(prng));
+		const x: u64 = prng;
 		prng = random.xorshift64(prng);
-		const y = @as(i64, @bitCast(prng));
+		const y: u64 = prng;
 
 		const base_hash = hash_fn(seed, x, y);
 		var hash_x_n0 = base_hash;
     var hash_y_n0 = base_hash;
 
-    // Un solo bucle para X e Y
     for (0..ctx.exploration_depth) |offset| {
-      // Sumamos 1 directamente aquí para reutilizarlo en ambas coordenadas
-      const offset_i64 = @as(i64, @bitCast(offset)) + 1;
 
-      const hash_x_n1 = hash_fn(seed, x + offset_i64, y);
+      const hash_x_n1 = hash_fn(seed, x + offset + 1, y);
 			const v_diff_x: @Vector(8, u8) = @bitCast(hash_x_n0 ^ hash_x_n1);
-      const is_zero_x = v_diff_x == vec_zero_bytes;
             
-    	ctx.result.x_collisions += @select(u64, is_zero_x, vec_ones, vec_zeros);
+    	ctx.result.x_collisions += @select(u64, v_diff_x == vec_zero_bytes, vec_ones, vec_zeros);
       hash_x_n0 = hash_x_n1;
 
-      // --- Exploración Vertical (Y) ---
-      const hash_y_n1 = hash_fn(seed, x, y + offset_i64);
+      const hash_y_n1 = hash_fn(seed, x, y + offset + 1);
       const v_diff_y: @Vector(8, u8) = @bitCast(hash_y_n0 ^ hash_y_n1);
-      const is_zero_y = v_diff_y == vec_zero_bytes;
             
-      ctx.result.y_collisions += @select(u64, is_zero_y, vec_ones, vec_zeros);
+      ctx.result.y_collisions += @select(u64, v_diff_y == vec_zero_bytes, vec_ones, vec_zeros);
       hash_y_n0 = hash_y_n1;
     }
 

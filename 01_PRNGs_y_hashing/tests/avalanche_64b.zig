@@ -87,11 +87,11 @@ fn avalanche_worker(comptime hash_fn: anytype, ctx: *WorkerCtx) void {
 
   for (0..ctx.entries) |_| {
     rng_state = random.xorshift64(rng_state);
-    const x: i64 = @bitCast(rng_state);
+    const x: u64 = rng_state;
     rng_state = random.xorshift64(rng_state);
-    const y: i64 = @bitCast(rng_state);
+    const y: u64 = rng_state;
     rng_state = random.xorshift64(rng_state);
-    const s = rng_state;
+    const s: u64 = rng_state;
 
     const g1 = hash_fn(s, x, y);
 
@@ -99,8 +99,8 @@ fn avalanche_worker(comptime hash_fn: anytype, ctx: *WorkerCtx) void {
       const bit_mask: u64 = @as(u64, 1) << @as(u6, @intCast(bit_pos));
 
       const g_s2 = hash_fn(s ^ bit_mask, x, y);
-      const g_x2 = hash_fn(s, x ^ @as(i64, @bitCast(bit_mask)), y);
-      const g_y2 = hash_fn(s, x, y ^ @as(i64, @bitCast(bit_mask)));
+      const g_x2 = hash_fn(s, x ^ bit_mask, y);
+      const g_y2 = hash_fn(s, x, y ^ bit_mask);
 
       const diff_s = g1 ^ g_s2;
       const diff_x = g1 ^ g_x2;

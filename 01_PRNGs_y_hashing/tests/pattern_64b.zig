@@ -28,14 +28,14 @@ fn patternTest(
 	const sy_data = try allocator.alloc(u64, total_pixels);
 	defer allocator.free(sy_data);
 
+	const x_in_u64 = @as(u64, @bitCast(x_in));
+	const y_in_u64 = @as(u64, @bitCast(y_in));
+
 	for (0..size) |i| {
 		for (0..size) |j| {
-			const x_abs = x_in + @as(i64, @bitCast(j));
-			const y_abs = y_in + @as(i64, @bitCast(i));
-
-			xy_data[(size - 1 - i) * size + j] = hash_fn(s_in, x_abs, y_abs);
-			xs_data[(size - 1 - i) * size + j] = hash_fn(s_in + i, x_abs, y_in);
-			sy_data[(size - 1 - i) * size + j] = hash_fn(s_in + j, x_in, y_abs);
+			xy_data[(size - 1 - i) * size + j] = hash_fn(s_in, x_in_u64 + j, y_in_u64 + i);
+			xs_data[(size - 1 - i) * size + j] = hash_fn(s_in + i, x_in_u64 + j, y_in_u64);
+			sy_data[(size - 1 - i) * size + j] = hash_fn(s_in + j, x_in_u64, y_in_u64 + i);
 		}
 	}
 
@@ -61,7 +61,7 @@ fn patternTest(
 	var writer_xs = std.fs.File.writer(file_xs, &.{});
 	try writer_xs.interface.writeAll(std.mem.sliceAsBytes(xs_data));
 
-    // 3. Array SY
+  // 3. Array SY
 	const path_sy = try std.fmt.allocPrint(allocator, "{s}/pattern_sy.bin", .{out_dir});
 	defer allocator.free(path_sy);
 	
@@ -83,10 +83,10 @@ pub fn main() !void {
 		return error.InvalidArguments;
 	}
 
-	const s = try std.fmt.parseInt(u64, args[1], 10);
-	const x = try std.fmt.parseInt(i64, args[2], 10);
-	const y = try std.fmt.parseInt(i64, args[3], 10);
-	const size = try std.fmt.parseInt(usize, args[4], 10);
+	const s: u64 = try std.fmt.parseInt(u64, args[1], 10);
+	const x: i64 = try std.fmt.parseInt(i64, args[2], 10);
+	const y: i64 = try std.fmt.parseInt(i64, args[3], 10);
+	const size: u64 = try std.fmt.parseInt(u64, args[4], 10);
 	const out_dir = args[5];
 	const hash_choice = std.meta.stringToEnum(HashChoice, args[6]) orelse {
 		std.debug.print("ERROR: Hash desconocido. Opciones: custom_v2 | custom_v1 | rapidhash\n", .{});

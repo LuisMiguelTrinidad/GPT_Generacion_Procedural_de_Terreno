@@ -17,7 +17,7 @@ fn testController(
 	reps: u64,
 	batch_size: u64,
 	base_state: anytype, 
-	data: []const i64,
+	data: []const u64,
 ) !void {
 	_ = stderr;
 
@@ -61,7 +61,7 @@ fn dispatchUnroll(
 	reps: u64,
 	batch_size: u64,
 	state: anytype,
-	data: []const i64,
+	data: []const u64,
 ) !void {
 	switch (unroll_param) {
 		1 => try testController(hash_fn, 1, stdout, stderr, reps, batch_size, state, data),
@@ -110,14 +110,13 @@ pub fn main() !void {
 		return error.InvalidBatchSize;
 	}
 
-	var small_data_buf: [64]i64 = undefined;
-	const needed_size = unroll_param * 2;
-	const data_slice = small_data_buf[0..needed_size];
+	var small_data_buf: [64]u64 = undefined;
+	const needed_size: u64 = unroll_param * 2;
+	const data_slice: []u64 = small_data_buf[0..needed_size];
 
-	var prng: u64 = seed;
-	for (data_slice) |*item| {
-		prng = random.splitmix64(prng);
-		item.* = @as(i64, @bitCast(random.splitmix64(prng)));
+	data_slice[0] = random.splitmix64(seed);
+	for (1..data_slice.len) |i| {
+		data_slice[i] = random.splitmix64(data_slice[i - 1]);
 	}
 
 	switch (hash_choice) {
