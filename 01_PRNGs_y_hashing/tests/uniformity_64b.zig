@@ -19,14 +19,14 @@ const WorkerCtx = struct {
 };
 
 fn uniformity_worker(comptime hash_fn: anytype, ctx: *WorkerCtx) void {
-	var thread_rng = random.splitmix64(ctx.seed);
+	var thread_rng = random.xorshift64(ctx.seed);
 
 	for (0..ctx.samples) |_| {
-		thread_rng = random.splitmix64(thread_rng);
+		thread_rng = random.xorshift64(thread_rng);
 		const s = thread_rng;
-		thread_rng = random.splitmix64(thread_rng);
+		thread_rng = random.xorshift64(thread_rng);
 		const x: u64 = thread_rng;
-		thread_rng = random.splitmix64(thread_rng);
+		thread_rng = random.xorshift64(thread_rng);
 		const y: u64 = thread_rng;
 
 		const val = hash_fn(s, x, y);

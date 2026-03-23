@@ -3,10 +3,8 @@ const std = @import("std");
 //###########################
 //#        CUSTOM_V1        #
 //###########################
-var custom_hash_seed_v1: u64 = 0;
 pub inline fn custom_hash_init_v1(seed: u64) u64 {
-	custom_hash_seed_v1 = splitmix64(seed);
-	return custom_hash_seed_v1;
+	return splitmix64(seed);
 }
 
 pub inline fn custom_hash_v1_no_init(seed: u64, x: u64, y: u64) u64 {
@@ -26,10 +24,8 @@ pub inline fn custom_hash_v1_full(seed: u64, x: u64, y: u64) u64 {
 //###########################
 //#        CUSTOM_V2        #
 //###########################
-var custom_hash_seed_v2: u64 = 0;
 pub inline fn custom_hash_init_v2(seed: u64) u64 {
-	custom_hash_seed_v2 = splitmix64(seed);
-	return custom_hash_seed_v2;
+	return splitmix64(seed);
 }
 
 pub inline fn custom_hash_v2_no_init(seed: u64, x: u64, y: u64) u64 {
