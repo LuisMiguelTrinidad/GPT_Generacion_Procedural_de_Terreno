@@ -33,7 +33,7 @@ fn testController(
 			var results: [unroll_factor]u64 = undefined;
 
 			inline for (0..unroll_factor) |step| {
-				const idx = step * 2; 
+				const idx = step; 
 				lane_states[step] = hash_fn(lane_states[step], data[idx], data[idx + 1]);
 				results[step] = lane_states[step];
 			}
@@ -68,11 +68,14 @@ fn dispatchUnroll(
 		2 => try testController(hash_fn, 2, stdout, stderr, reps, batch_size, state, data),
 		3 => try testController(hash_fn, 3, stdout, stderr, reps, batch_size, state, data),
 		4 => try testController(hash_fn, 4, stdout, stderr, reps, batch_size, state, data),
+		6 => try testController(hash_fn, 6, stdout, stderr, reps, batch_size, state, data),
 		8 => try testController(hash_fn, 8, stdout, stderr, reps, batch_size, state, data),
+		12 => try testController(hash_fn, 12, stdout, stderr, reps, batch_size, state, data),
 		16 => try testController(hash_fn, 16, stdout, stderr, reps, batch_size, state, data),
+		24 => try testController(hash_fn, 24, stdout, stderr, reps, batch_size, state, data),
 		32 => try testController(hash_fn, 32, stdout, stderr, reps, batch_size, state, data),
 		else => {
-			try stderr.print("ERROR: Factor de unroll no soportado (usa 1, 2, 3, 4, 8, 16 o 32).\n", .{});
+			try stderr.print("ERROR: Factor de unroll no soportado (usa 1, 2, 3, 4, 6, 8, 12, 16, 24 o 32).\n", .{});
 			return error.InvalidUnrollFactor;
 		},
 	}
@@ -111,7 +114,7 @@ pub fn main() !void {
 	}
 
 	var small_data_buf: [64]u64 = undefined;
-	const needed_size: u64 = unroll_param * 2;
+	const needed_size: u64 = unroll_param + 1;
 	const data_slice: []u64 = small_data_buf[0..needed_size];
 
 	data_slice[0] = random.splitmix64(seed);
