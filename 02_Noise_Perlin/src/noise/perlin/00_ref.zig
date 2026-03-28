@@ -1,0 +1,104 @@
+const std = @import("std");
+const hash = @import("../../core/shared/hash.zig");
+const table = @import("../../core/f32/table.zig");
+const types = @import("../../core/f32/types.zig");
+const math = @import("../../core/shared/math.zig");
+
+pub const RequiredAlignment = @alignOf(f32);
+
+pub fn perlin_init_config(
+  values_buf: []f32,
+  smoothed_buf: []f32,
+  seed: u64,
+  chunk_size: u64,
+  scale: u64,
+  octaves: u64,
+  persistence: f32,
+  lacunarity: f32,
+) types.PerlinConfig {
+  std.debug.assert(scale != 0 and (scale & (scale - 1)) == 0);
+  _ = values_buf;
+  _ = smoothed_buf;
+  return types.PerlinConfig{
+    .seed = seed,
+    .chunk_size = chunk_size,
+    .scale = scale,
+    .octaves = octaves,
+    .persistence = persistence,
+    .lacunarity = lacunarity,
+		.cached_values = undefined,
+		.cached_smoothed_values = undefined,
+    };
+}
+
+pub fn perlin_generate_chunk2d(
+  cfg: types.PerlinConfig, 
+  chunk_x: i64, 
+  chunk_y: i64, 
+  out_buffer: []f32,
+  gc: [][2]f32,
+  scratch_allocator: anytype,
+  ) void {
+  _ = gc;
+  _ = scratch_allocator;
+  const cs_u: u64 = cfg.chunk_size;
+  const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
+
+  const sc_i: i64 = @as(i64, @intCast(cfg.scale));
+  const sc_l: u6  = @as(u6, @intCast(@ctz(cfg.scale))); 
+  const sc_inv_f: f32 = 1.0 / @as(f32, @floatFromInt(sc_i));
+
+  // Array-space world coordinate for the chunk origin
+  const arr_world_base_x_i: i64 = chunk_x * cs_i;
+  const arr_world_base_y_i: i64 = chunk_y * cs_i;
+
+  for (0..cs_u) |y| {
+    // Noise-space Y grows upward while array rows grow downward
+    const arr_local_y_i: i64 = cs_i - @as(i64, @intCast(y)) - 1;
+    const arr_world_y_i: i64 = arr_world_base_y_i + arr_local_y_i;
+        
+    const noise_local_y_f: f32 = math.fast_fract(@as(f32, @floatFromInt(arr_world_y_i)) * sc_inv_f);
+
+    const noise_grid_y0_i: i64 = arr_world_y_i >> sc_l;
+    const noise_grid_y1_i: i64 = noise_grid_y0_i + 1;
+
+    const row_off_u: u64 = y * cs_u;
+    for (0..cs_u) |x| {
+      const arr_world_x_i: i64 = arr_world_base_x_i + @as(i64, @intCast(x));
+            
+      const noise_local_x_f: f32 = math.fast_fract(@as(f32, @floatFromInt(arr_world_x_i)) * sc_inv_f);
+
+      const noise_grid_x0_i: i64 = arr_world_x_i >> sc_l;
+      const noise_grid_x1_i: i64 = noise_grid_x0_i + 1;
+
+      const g_bl: [2]f32 = table.grad[
+				hash.murmur_hash(cfg.seed, noise_grid_x0_i, noise_grid_y0_i) & table.grad_mask
+      ];
+      const g_br: [2]f32 = table.grad[
+				hash.murmur_hash(cfg.seed, noise_grid_x1_i, noise_grid_y0_i) & table.grad_mask
+      ];
+      const g_tl: [2]f32 = table.grad[
+				hash.murmur_hash(cfg.seed, noise_grid_x0_i, noise_grid_y1_i) & table.grad_mask
+      ];
+      const g_tr: [2]f32 = table.grad[
+				hash.murmur_hash(cfg.seed, noise_grid_x1_i, noise_grid_y1_i) & table.grad_mask
+      ];
+
+      const d_bl: f32 = math.dot_prod_2d(g_bl[0], g_bl[1], noise_local_x_f, noise_local_y_f);
+      const d_br: f32 = math.dot_prod_2d(g_br[0], g_br[1], noise_local_x_f-1.0, noise_local_y_f);
+      const d_tl: f32 = math.dot_prod_2d(g_tl[0], g_tl[1], noise_local_x_f, noise_local_y_f-1.0);
+      const d_tr: f32 = math.dot_prod_2d(g_tr[0], g_tr[1], noise_local_x_f-1.0, noise_local_y_f-1.0);
+
+      const x_smooth = math.smooth_step(noise_local_x_f);
+      const y_smooth = math.smooth_step(noise_local_y_f);
+
+      const value = math.lerp(
+        math.lerp(d_bl, d_br, x_smooth),
+        math.lerp(d_tl, d_tr, x_smooth), 
+				y_smooth
+      );
+
+      out_buffer[row_off_u + x] = value;
+    }
+  }
+}
