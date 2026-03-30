@@ -8,13 +8,14 @@ pub inline fn custom_hash_init_v1(seed: u64) u64 {
 }
 
 pub inline fn custom_hash_v1_no_init(seed: u64, x: u64, y: u64) u64 {
-	const pre: u64 = x +% 11811329173984144537;
+	const mix_x: u64 = x ^ 0x9E3779B97F4A7C15;
+	const mix_y: u64 = seed ^ y;
+
+	var pro: u128 = std.math.mulWide(u64, mix_x, mix_y);
+
+	pro = std.math.mulWide(u64,  @as(u64, @truncate(pro)), @as(u64, @truncate(pro >> 64)));
 	
-	const pro: u128 = std.math.mulWide(u64, pre ^ seed, y +% pre);
-	const hash: u64 = @as(u64, @truncate(pro)) ^ @as(u64, @truncate(pro >> 64));
-	
-	const swapped = @byteSwap(hash);
-	return swapped ^ (hash +% std.math.rotr(u64, swapped, 13));
+	return @as(u64, @truncate(pro)) ^  @as(u64, @truncate(pro >> 64));
 }
 
 pub inline fn custom_hash_v1_full(seed: u64, x: u64, y: u64) u64 {
@@ -33,7 +34,8 @@ pub inline fn custom_hash_v2_no_init(seed: u64, x: u64, y: u64) u64 {
 	const mix_y: u64 = (mix_x ^ y) *% 11811329173984144537;
 
 	var pro: u128 = std.math.mulWide(u64, mix_y, mix_x);
-	pro = std.math.mulWide(u64, @as(u64, @truncate(pro)), @truncate(pro >> 64));
+
+	pro = std.math.mulWide(u64, @as(u64, @truncate(pro)), @as(u64, @truncate(pro >> 64)));
 
 	return @as(u64, @truncate(pro)) ^ @as(u64, @truncate(pro >> 64));
 }
@@ -46,14 +48,9 @@ pub inline fn custom_hash_v2_full(seed: u64, x: u64, y: u64) u64 {
 //#        RAPIDHASH        #
 //###########################
 
-// Constantes oficiales de rapidhash
-const secret_1: u64 = 0x8bb84b93962eacc9;
-const secret_2: u64 = 0x4b33a62ed433d4a3;
-const secret_7: u64 = 0xaaaaaaaaaaaaaaaa;
-
 var rapid_seed: u64 = 0;
 pub inline fn rapidhashnano_init_seed(seed: u64) u64 {
-	const pro: u128 = std.math.mulWide(u64, seed ^ secret_2, secret_1);
+	const pro: u128 = std.math.mulWide(u64, seed ^ 0x4b33a62ed433d4a3, 0x8bb84b93962eacc9);
 	return seed ^ @as(u64, @truncate(pro)) ^ @as(u64, @truncate(pro >> 64));
 }
 
@@ -62,11 +59,11 @@ pub inline fn rapidhashnano_full(seed: u64, x: u64, y: u64) u64 {
 }
 
 pub inline fn rapidhashnano_no_init(seed: u64, x: u64, y: u64) u64 {
-	var pro: u128 = std.math.mulWide(u64, x ^ secret_1, y ^ seed ^ 16);
+	var pro: u128 = std.math.mulWide(u64, x ^ 0x8bb84b93962eacc9, y ^ seed ^ 16);
 	pro = std.math.mulWide(
 		u64, 
-		@as(u64, @truncate(pro)) ^ secret_7, 
-		@as(u64, @truncate(pro >> 64)) ^ secret_1 ^ 16
+		@as(u64, @truncate(pro)) ^ 0xaaaaaaaaaaaaaaaa, 
+		@as(u64, @truncate(pro >> 64)) ^ 0x8bb84b93962eacc9 ^ 16
 	); 
 
 	return @as(u64, @truncate(pro)) ^ @as(u64, @truncate(pro >> 64));
