@@ -8,14 +8,15 @@ pub inline fn custom_hash_init_v1(seed: u64) u64 {
 }
 
 pub inline fn custom_hash_v1_no_init(seed: u64, x: u64, y: u64) u64 {
-	const mix_x: u64 = x ^ 0x9E3779B97F4A7C15;
-	const mix_y: u64 = seed ^ y;
-
-	var pro: u128 = std.math.mulWide(u64, mix_x, mix_y);
-
-	pro = std.math.mulWide(u64,  @as(u64, @truncate(pro)), @as(u64, @truncate(pro >> 64)));
+	var pro: u128 = std.math.mulWide(u64, x ^ 0x9E3779B97F4A7C15, seed ^ y );
+	var lo = @as(u64, @truncate(pro));
+	var hi = @as(u64, @truncate(pro >> 64));
 	
-	return @as(u64, @truncate(pro)) ^  @as(u64, @truncate(pro >> 64));
+	pro = std.math.mulWide(u64,  hi,  seed ^ lo);
+	lo = @as(u64, @truncate(pro));
+	hi = @as(u64, @truncate(pro >> 64));
+	
+	return lo ^ hi;
 }
 
 pub inline fn custom_hash_v1_full(seed: u64, x: u64, y: u64) u64 {
@@ -34,8 +35,7 @@ pub inline fn custom_hash_v2_no_init(seed: u64, x: u64, y: u64) u64 {
 	const mix_y: u64 = (mix_x ^ y) *% 11811329173984144537;
 
 	var pro: u128 = std.math.mulWide(u64, mix_y, mix_x);
-
-	pro = std.math.mulWide(u64, @as(u64, @truncate(pro)), @as(u64, @truncate(pro >> 64)));
+	pro = std.math.mulWide(u64, @as(u64, @truncate(pro)), @truncate(pro >> 64));
 
 	return @as(u64, @truncate(pro)) ^ @as(u64, @truncate(pro >> 64));
 }
