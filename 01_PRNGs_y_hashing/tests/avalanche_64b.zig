@@ -171,44 +171,44 @@ fn runAvalanche64b(
 }
 
 pub fn main() !void {
-    var stdout_writer = std.fs.File.stdout().writer(&.{});
-    var stderr_writer = std.fs.File.stderr().writer(&.{});
+  var stdout_writer = std.fs.File.stdout().writer(&.{});
+  var stderr_writer = std.fs.File.stderr().writer(&.{});
 
-    const stdout = &stdout_writer.interface;
-    const stderr = &stderr_writer.interface;
+  const stdout = &stdout_writer.interface;
+  const stderr = &stderr_writer.interface;
 
-    var gpa = std.heap.page_allocator;
+  var gpa = std.heap.page_allocator;
 
-    const args = try std.process.argsAlloc(gpa);
-    defer gpa.free(args);
+  const args = try std.process.argsAlloc(gpa);
+  defer gpa.free(args);
 
-    if (args.len != 4) {
-        stderr.print("USO: {s} <number_of_entries> <random_seed> <hash> \nHASH: custom_v2 | custom_v1 | rapidhash\n", .{args[0]}) catch {};
-        return error.InvalidArguments;
-    }
+  if (args.len != 4) {
+    stderr.print("USO: {s} <number_of_entries> <random_seed> <hash> \nHASH: custom_v2 | custom_v1 | rapidhash\n", .{args[0]}) catch {};
+    return error.InvalidArguments;
+  }
 
-    const entries = try std.fmt.parseInt(u64, args[1], 10);
-    const seed = try std.fmt.parseInt(u64, args[2], 10);
-    const hash_choice = std.meta.stringToEnum(HashChoice, args[3]) orelse {
-        stderr.print("ERROR: Hash desconocido. Opciones: custom_v2 | custom_v1 | rapidhash\n", .{}) catch {};
-        return error.InvalidHashChoice;
-    };
+  const entries = try std.fmt.parseInt(u64, args[1], 10);
+  const seed = try std.fmt.parseInt(u64, args[2], 10);
+  const hash_choice = std.meta.stringToEnum(HashChoice, args[3]) orelse {
+    stderr.print("ERROR: Hash desconocido. Opciones: custom_v2 | custom_v1 | rapidhash\n", .{}) catch {};
+    return error.InvalidHashChoice;
+  };
 
-    switch (hash_choice) {
-        .custom_v2 => try runAvalanche64b(
-            random.custom_hash_v2_full,
-            stdout, stderr,
-            entries, seed
-        ),
-        .custom_v1 => try runAvalanche64b(
-            random.custom_hash_v1_full,
-            stdout, stderr,
-            entries, seed
-        ),
-        .rapidhash => try runAvalanche64b(
-            random.rapidhashnano_full,
-            stdout, stderr,
-            entries, seed
-        ),
-    }
+  switch (hash_choice) {
+    .custom_v2 => try runAvalanche64b(
+      random.custom_hash_v2_full,
+      stdout, stderr,
+      entries, seed
+    ),
+    .custom_v1 => try runAvalanche64b(
+      random.custom_hash_v1_full,
+      stdout, stderr,
+      entries, seed
+    ),
+    .rapidhash => try runAvalanche64b(
+      random.rapidhashnano_full,
+      stdout, stderr,
+      entries, seed
+    ),
+  }
 }
