@@ -4,8 +4,8 @@ Implementación y benchmark de ruido Perlin en Zig, con múltiples variantes de 
 
 ## Requisitos
 
-- Zig `0.14.x` (o compatible con `build.zig` actual)
-- CPU x86_64 con AVX2 (mínimo) para modos `i16` (`O5`, `O6`)
+- Zig `0.15.2`
+- CPU con SIMD para modos `i16` (`O5`, `O6`): AVX2/AVX512BW en `x86_64` o NEON en `aarch64`
 
 ## Instalación y ejecución básica
 
@@ -19,27 +19,21 @@ zig build --release=fast
 También puedes usar:
 
 ```bash
-zig build run --release=fast -- O5
+zig build --release=fast run -- O5
 ```
 
-## Comandos útiles
-
-- Build rápido: `zig build --release=fast`
-- Ejecutar con argumentos: `zig build run --release=fast -- O6`
-- Tests Zig: `zig build test`
-- Convención de nombres: `zig build naming`
 
 ## Qué hace cada modo (`O0`...`O6`)
 
 - `O0`: referencia base, sin optimizaciones estructurales agresivas.
 - `O1`: variante con hash custom para reducir coste respecto al baseline.
 - `O2`: caching de valores auxiliares para disminuir recomputación.
-- `O3`: tiling/indexación optimizada y mejor localidad.
+- `O3`: pseudotiling/indexación optimizada y mejor localidad.
 - `O4`: versión SIMD en `f32`.
-- `O5`: versión vectorial en punto fijo `i16`.
+- `O5`: versión SIMD en punto fijo `i16`.
 - `O6`: versión `i16` con unroll adicional y cacheado de cálculo en L1.
 
-En `O5`/`O6` se selecciona automáticamente backend vectorial: AVX512BW (32 lanes) cuando el target lo soporta, y AVX2 (16 lanes) en caso contrario.
+El backend SIMD se resuelve en `core/shared/arch_caps.zig` con prioridad `AVX512BW -> AVX2 -> NEON -> scalar` (según target y CPU features). Los modos `i16` (`O5`, `O6`) usan ese ancho vectorial a través de `core/i16/vector_math.zig`.
 
 > Nota: Los nombres `O0..O6` son etiquetas de variante del algoritmo, no equivalen directamente a flags de optimización del compilador Zig.
 
@@ -47,29 +41,43 @@ En `O5`/`O6` se selecciona automáticamente backend vectorial: AVX512BW (32 lane
 
 ```text
 src/
+  main.zig                 # CLI: valida args y delega en benchmark/engine
+  root.zig                 # API pública (engine + perlin_registry)
+
   benchmark/
-    engine.zig             # Orquestador de ejecución por modo
-    runner.zig             # Warmup + benchmark pass
-    report.zig             # Formato de métricas
+    config.zig             # Parámetros de benchmark (seed, chunk, escala, etc.)
+    engine.zig             # Dispatcher por modo (f32/i16)
+    runner.zig             # Warmup + pass de benchmark + medición de ciclos
+    report.zig             # Cálculo e impresión de métricas
     f32/
-      run_mode.zig         # Pipeline benchmark para modos f32
-      image_writer.zig     # Exportación PNG para muestras f32
+      run_mode.zig         # Pipeline de ejecución para modos f32
+      image_writer.zig     # Adaptador f32 -> Gray8Image
     i16/
-      run_mode.zig         # Pipeline benchmark para modos i16
-      image_writer.zig     # Exportación PNG para muestras i16
+      run_mode.zig         # Pipeline de ejecución para modos i16
+      image_writer.zig     # Adaptador i16 -> Gray8Image
+    image/
+      composite_builder.zig # Composición de mosaico de chunks
+      output_naming.zig     # Convención de nombres de salida
+      png_writer.zig        # Escritura PNG (zigimg)
+      types.zig             # Tipos de imagen (Gray8Image)
 
   core/
     shared/
-      hash.zig
-      math.zig
+      arch_caps.zig         # Detección de arquitectura/capacidades SIMD
+      cycle_counter.zig     # Lectura de ciclos de CPU
+      hash.zig              # Hashes para gradientes
+      math.zig              # Utilidades matemáticas compartidas
     f32/
       types.zig
       table.zig
+      vector_math.zig       # Helpers SIMD para f32
     i16/
       types.zig
       table.zig
+      vector_math.zig       # Operaciones Q0.15 + intrinsics AVX/NEON
 
   noise/perlin/
+    mode_meta.zig          # Enums compartidos (SampleKind, GradLayout)
     00_ref.zig
     01_custom_hash.zig
     02_caching.zig
@@ -77,8 +85,19 @@ src/
     04_simd.zig
     05_fpa.zig
     06_licm.zig
-    registry.zig           # Mapeo modo -> implementación + metadatos
+    registry.zig           # Mapeo O0..O6 -> implementación + metadatos
 ```
+
+### Flujo de ejecución (alto nivel)
+
+1. `main.zig` valida argumentos (`O0..O6`) y delega en `benchmark/engine.zig`.
+2. `engine.zig` consulta `noise/perlin/registry.zig` para resolver `ModeSpec` (módulo, tipo de dato, layout de memoria, alineación).
+3. `benchmark/f32/run_mode.zig` o `benchmark/i16/run_mode.zig` inicializa buffers/config y ejecuta:
+    - `runner.run_warmup`
+    - `runner.run_benchmark_pass`
+    - `report.print_benchmark_report`
+    - `image_writer.write_composite_image`
+4. `image_writer` delega en `benchmark/image/*` para construir la imagen compuesta y guardarla como PNG.
 
 ## Salida
 
@@ -86,12 +105,6 @@ Cada ejecución genera:
 
 - Resumen de rendimiento en consola (tiempo, Mpts/s, ciclos/punto)
 - Imagen en `output/perlin_composite_*_zig_<modo>.png`
-
-## Convenciones
-
-- Funciones en `snake_case`
-- Tipos (`struct`, `enum`, `union`) en `PascalCase`
-- Validación automática mediante `zig build naming`
 
 ## Limitaciones y restricciones actuales
 
@@ -102,17 +115,15 @@ Estas restricciones salen del código actual de las variantes (`O0..O6`) y del p
 - `SCALE` debe ser **potencia de 2** y `> 0`.
   - Se usa `@ctz(SCALE)` y máscara `SCALE - 1` para indexación modular (`idx & (SCALE - 1)`).
   - Si no es potencia de 2, la indexación de tiles/celdas deja de ser correcta.
-
 - En modos vectoriales, `min(CHUNK_SIZE, SCALE)` debe ser múltiplo del ancho vectorial.
   - `O4` (`f32`, 8 lanes): múltiplo de **8**.
-  - `O5` y `O6` (`i16`): múltiplo de `LANES` (**16 con AVX2**, **32 con AVX512BW**).
+  - `O5` y `O6` (`i16`): múltiplo de `LANES` (**16 con AVX2**, **32 con AVX512BW**, **8 con NEON**).
   - Si no se cumple, los `load/store` vectoriales alineados pueden leer/escribir fuera de bloque.
-
-- En `O6`, además, `min(CHUNK_SIZE, SCALE)` debería ser múltiplo de **8** (por `UNROLL_FACTOR = 8`).
-  - El bucle de filas avanza de 8 en 8 y prepara 8 filas por iteración.
+- En `O6`, además, `min(CHUNK_SIZE, SCALE)` debe ser múltiplo de **4** (por `UNROLL_FACTOR = 4`).
+  - El bucle de filas avanza de 4 en 4 y prepara 4 filas por iteración.
 - Estas condiciones se validan en `comptime` en `O5`/`O6` (fallan en compilación si no se cumplen).
-- Los modos `i16` (`O5`, `O6`) requieren CPU x86_64 con AVX2 como mínimo.
-  - Si el target incluye AVX512BW, usan vectorización de 32 lanes; si no, fallback a 16 lanes.
+- Los modos `i16` (`O5`, `O6`) requieren backend SIMD válido para `i16`.
+  - Si el target incluye AVX512BW usan 32 lanes; con AVX2 usan 16; en `aarch64` con NEON usan 8.
 - La alineación requerida por cada modo debe respetarse.
   - Se obtiene vía `registry.get_mode_spec(...).required_alignment` y se valida como potencia de 2.
   - El código ya reserva buffers con esa alineación (`alignedAlloc`).
@@ -120,7 +131,7 @@ Estas restricciones salen del código actual de las variantes (`O0..O6`) y del p
 ### Restricciones prácticas/recomendadas
 - Para benchmark estable, usa `CHUNK_SIZE` y `SCALE` como potencias de 2 y, preferiblemente, iguales (por ejemplo `512/512`, como en `config.zig`).
 - En `i16` (`O5`, `O6`), mantener `SCALE <= 32768` evita problemas con la representación Q0.15 al precalcular `cached_values`.
-- Si quieres portabilidad sin AVX2, usa `O0..O4`.
+- Si quieres portabilidad en targets sin backend SIMD válido para `i16`, usa `O0..O4`.
 
 ### Nota sobre parámetros no usados
 

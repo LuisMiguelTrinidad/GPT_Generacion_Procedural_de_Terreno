@@ -1,23 +1,31 @@
-const hash = @import("../../core/shared/hash.zig");
+const std = @import("std");
+
 const table = @import("../../core/f32/table.zig");
 const types = @import("../../core/f32/types.zig");
+
+const hash = @import("../../core/shared/hash.zig");
 const math = @import("../../core/shared/math.zig");
 
+const mode_meta = @import("mode_meta.zig");
+
 pub const RequiredAlignment = @alignOf(f32);
+pub const sample_kind: mode_meta.SampleKind = .f32;
+pub const grad_layout: mode_meta.GradLayout = .aos;
 
 pub fn perlin_init_config(
   values_buf: []f32,
   smoothed_buf: []f32,
-  comptime seed: u64,
+  seed: u64,
   comptime chunk_size: u64,
   comptime scale: u64,
   comptime octaves: u64,
   comptime persistence: f32,
   comptime lacunarity: f32
 ) types.PerlinConfig {
+
   comptime {
-    if (scale == 0 or (scale & (scale - 1)) != 0) {
-      @compileError("O3 requires SCALE to be a non-zero power of two");
+    if ((@popCount(scale) != 1)) {
+      @compileError("O3 requires SCALE to be a power of two");
     }
   }
 
@@ -28,7 +36,7 @@ pub fn perlin_init_config(
   }
 
   return types.PerlinConfig{
-    .seed = seed,
+    .seed = hash.custom_hash_init_v1(seed),
     .chunk_size = chunk_size,
     .scale = scale,
     .octaves = octaves,
@@ -48,15 +56,13 @@ inline fn precompute_gradients(
 ) void {
   for (0..gps) |gy| {
     for (0..gps) |gx| {
-      const noise_grid_x_i: i64 = noise_grid_base_x_i + @as(i64, @intCast(gx));
-      const noise_grid_y_i: i64 = noise_grid_base_y_i + @as(i64, @intCast(gy));
-      
-      gc[gy * gps + gx] = table.grad[hash.custom_hash(
+      const u64_idx: u64 = hash.custom_hash_v1_no_init(
         cfg.seed, 
-        noise_grid_x_i, 
-        noise_grid_y_i
-        ) & table.grad_mask
-      ];
+        @as(u64, @bitCast(noise_grid_base_x_i)) + gx,
+        @as(u64, @bitCast(noise_grid_base_y_i)) + gy
+      );
+
+      gc[gy * gps + gx] = table.grad[u64_idx & table.grad_mask];
     }
   }
 }
@@ -67,8 +73,8 @@ pub fn perlin_generate_chunk2d(
   chunk_y: i64, 
   out_buffer: []f32,
   gc: [][2]f32,
-  scratch_allocator: anytype,
-) void {
+  scratch_allocator: std.mem.Allocator,
+) !void {
 	_ = scratch_allocator;
 
 	// cs = chunk size

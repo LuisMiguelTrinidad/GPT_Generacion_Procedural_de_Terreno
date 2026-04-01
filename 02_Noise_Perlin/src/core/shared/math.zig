@@ -13,7 +13,3 @@ pub inline fn smooth_step(t: f32) f32 {
 pub inline fn fast_fract(v: f32) f32 {
   return v - @floor(v);
 }
-
-pub inline fn fast_mod_pow2(v: u64, scale_mask: u64) u64 {
-  return v & scale_mask;
-}

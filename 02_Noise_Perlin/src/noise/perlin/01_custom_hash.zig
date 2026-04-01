@@ -1,26 +1,39 @@
 const std = @import("std");
-const hash = @import("../../core/shared/hash.zig");
+
 const table = @import("../../core/f32/table.zig");
 const types = @import("../../core/f32/types.zig");
+
+const hash = @import("../../core/shared/hash.zig");
 const math = @import("../../core/shared/math.zig");
 
+const mode_meta = @import("mode_meta.zig");
+
 pub const RequiredAlignment = @alignOf(f32);
+pub const sample_kind: mode_meta.SampleKind = .f32;
+pub const grad_layout: mode_meta.GradLayout = .aos;
 
 pub fn perlin_init_config(
   values_buf: []f32,
   smoothed_buf: []f32,
   seed: u64,
-  chunk_size: u64,
-  scale: u64,
-  octaves: u64,
-  persistence: f32,
-  lacunarity: f32,
+  comptime chunk_size: u64,
+  comptime scale: u64,
+  comptime octaves: u64,
+  comptime persistence: f32,
+  comptime lacunarity: f32
 ) types.PerlinConfig {
-  std.debug.assert(scale != 0 and (scale & (scale - 1)) == 0);
+
+  comptime {
+    if ((@popCount(scale) != 1)) {
+      @compileError("O1 requires SCALE to be a power of two");
+    }
+  }
+
   _ = values_buf;
   _ = smoothed_buf;
+
   return types.PerlinConfig{
-    .seed = seed,
+    .seed = hash.custom_hash_init_v1(seed),
     .chunk_size = chunk_size,
     .scale = scale,
     .octaves = octaves,
@@ -28,7 +41,7 @@ pub fn perlin_init_config(
     .lacunarity = lacunarity,
 		.cached_values = undefined,
 		.cached_smoothed_values = undefined,
-    };
+  };
 }
 
 pub fn perlin_generate_chunk2d(
@@ -37,10 +50,11 @@ pub fn perlin_generate_chunk2d(
   chunk_y: i64, 
   out_buffer: []f32,
   gc: [][2]f32,
-  scratch_allocator: anytype,
-  ) void {
+  scratch_allocator: std.mem.Allocator,
+) !void {
   _ = gc;
   _ = scratch_allocator;
+  
   const cs_u: u64 = cfg.chunk_size;
   const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
 
@@ -72,16 +86,32 @@ pub fn perlin_generate_chunk2d(
       const noise_grid_x1_i: i64 = noise_grid_x0_i + 1;
 
       const g_bl: [2]f32 = table.grad[
-				hash.custom_hash(cfg.seed, noise_grid_x0_i, noise_grid_y0_i) & table.grad_mask
+				hash.custom_hash_v1_no_init(
+          cfg.seed, 
+          @as(u64, @bitCast(noise_grid_x0_i)),
+          @as(u64, @bitCast(noise_grid_y0_i))
+        ) & table.grad_mask
       ];
       const g_br: [2]f32 = table.grad[
-				hash.custom_hash(cfg.seed, noise_grid_x1_i, noise_grid_y0_i) & table.grad_mask
+				hash.custom_hash_v1_no_init(
+          cfg.seed, 
+          @as(u64, @bitCast(noise_grid_x1_i)), 
+          @as(u64, @bitCast(noise_grid_y0_i))
+        ) & table.grad_mask
       ];
       const g_tl: [2]f32 = table.grad[
-				hash.custom_hash(cfg.seed, noise_grid_x0_i, noise_grid_y1_i) & table.grad_mask
+				hash.custom_hash_v1_no_init(
+          cfg.seed, 
+          @as(u64, @bitCast(noise_grid_x0_i)), 
+          @as(u64, @bitCast(noise_grid_y1_i))
+        ) & table.grad_mask
       ];
       const g_tr: [2]f32 = table.grad[
-				hash.custom_hash(cfg.seed, noise_grid_x1_i, noise_grid_y1_i) & table.grad_mask
+				hash.custom_hash_v1_no_init(
+          cfg.seed, 
+          @as(u64, @bitCast(noise_grid_x1_i)), 
+          @as(u64, @bitCast(noise_grid_y1_i))
+        ) & table.grad_mask
       ];
 
       const d_bl: f32 = math.dot_prod_2d(g_bl[0], g_bl[1], noise_local_x_f, noise_local_y_f);

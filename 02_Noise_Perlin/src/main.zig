@@ -3,28 +3,33 @@ const std = @import("std");
 const engine = @import("benchmark/engine.zig");
 
 pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+	var stdout_writer = std.fs.File.stdout().writer(&.{});
+	var stderr_writer = std.fs.File.stderr().writer(&.{});
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+	const stdout = &stdout_writer.interface;
+	const stderr = &stderr_writer.interface;
 
-    if (args.len < 2) {
-        std.debug.print("Error: Uso incorrecto.\nFormato esperado: {s} <modo>\nModos disponibles: O0, O1, O2, O3, O4, O5, O6\n", .{args[0]});
-        return;
-    }
+	const allocator = std.heap.page_allocator;
 
-    const mode_arg = args[1];
-    const mode_opt = engine.parse_mode(mode_arg);
+	const args = try std.process.argsAlloc(allocator);
+	defer std.process.argsFree(allocator, args);
 
-    if (mode_opt) |runtime_mode| {
-        switch (runtime_mode) {
-            inline else => |comptime_m| {
-                try engine.run_mode(comptime_m, allocator);
-            },
-        }
-    } else {
-        std.debug.print("Modo desconocido, no se ejecutará '{s}'\n", .{mode_arg});
-    }
+	if (args.len != 2) {
+		try stderr.print(
+			"USO: {s} <modo>\nModos disponibles: O0 | O1 | O2 | O3 | O4 | O5 | O6\n",
+			.{args[0]},
+		);
+		return error.InvalidArguments;
+	}
+
+	const mode = engine.parse_mode(args[1]) orelse {
+		try stderr.print("ERROR: Modo desconocido. Opciones: O0 | O1 | O2 | O3 | O4 | O5 | O6\n", .{});
+		return error.InvalidMode;
+	};
+
+	switch (mode) {
+		inline else => |comptime_mode| {
+			try engine.run_mode(comptime_mode, allocator, stdout, stderr);
+		},
+	}
 }

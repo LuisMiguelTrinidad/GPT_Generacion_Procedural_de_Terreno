@@ -1,16 +1,27 @@
-const hash = @import("../../core/shared/hash.zig");
+const std = @import("std");
+
 const table = @import("../../core/i16/table.zig");
 const types = @import("../../core/i16/types.zig");
-const math = @import("../../core/shared/math.zig");
 const vector_math = @import("../../core/i16/vector_math.zig");
+
+const hash = @import("../../core/shared/hash.zig");
+const math = @import("../../core/shared/math.zig");
+
+const mode_meta = @import("mode_meta.zig");
 
 const LANES: u8 = vector_math.q15_lanes;
 const Vec_i = @Vector(LANES, i16);
 const VEC_ALIGN: u29 = @alignOf(Vec_i);
 pub const RequiredAlignment: u29 = VEC_ALIGN;
+pub const sample_kind: mode_meta.SampleKind = .i16;
+pub const grad_layout: mode_meta.GradLayout = .soa;
+
+const Q15_ONE: i16 = 0x7FFF;
+const VEC_Q15_ONE: Vec_i = @splat(Q15_ONE);
+const VEC_Q15_FOUR: Vec_i = @splat(4);
 
 comptime {
-  if (RequiredAlignment == 0 or (RequiredAlignment & (RequiredAlignment - 1)) != 0) {
+  if (@popCount(@as(u64, @alignOf(Vec_i))) != 1) {
     @compileError("RequiredAlignment must be a non-zero power of two");
   }
 }
@@ -26,7 +37,7 @@ inline fn store_vec_aligned(base: [*]i16, idx: usize, v: Vec_i) void {
 pub fn perlin_init_config(
   values_buf: []i16,
   smoothed_buf: []i16,
-  comptime seed: u64,
+  seed: u64,
   comptime chunk_size: u64,
   comptime scale: u64,
   comptime octaves: u64,
@@ -34,27 +45,27 @@ pub fn perlin_init_config(
   comptime lacunarity: f32,
 ) types.PerlinConfig {
   comptime {
-    if (scale == 0 or (scale & (scale - 1)) != 0) {
-      @compileError("O5 requires SCALE to be a non-zero power of two");
+    if (@popCount(scale) != 1) {
+      @compileError("O5 requires SCALE to be a power of two");
     }
 
-    const min_dim = @min(chunk_size, scale);
-    if ((min_dim % LANES) != 0) {
+    if ((@min(chunk_size, scale) % LANES) != 0) {
       @compileError("O5 requires min(CHUNK_SIZE, SCALE) to be a multiple of LANES");
     }
   }
 
   const sc_l: u6 = @as(u6, @intCast(@ctz(scale)));
   for (0..scale) |i| {
-    const if32: i16 = @as(i16, @intCast(i)) << (15 - sc_l); // Escalado a Q0.15
-    values_buf[i] = if32;
+    values_buf[i] = @as(i16, @intCast(i)) << (15 - sc_l); // Escalado a Q0.15
     smoothed_buf[i] = @as(i16, @intFromFloat(
-      @as(f32, 0x7FFF) * math.smooth_step(@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(scale)))
+      @as(f32, @floatFromInt(Q15_ONE)) * math.smooth_step(
+        @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(scale))
+      )    
     ));
   }
 
   return types.PerlinConfig{
-    .seed = seed,
+    .seed = hash.custom_hash_init_v1(seed),
     .chunk_size = chunk_size,
     .scale = scale,
     .octaves = octaves,
@@ -74,13 +85,10 @@ inline fn precompute_gradients(
 ) void {
   for (0..gps) |gy| {
     for (0..gps) |gx| {
-      const noise_grid_x_i: i64 = noise_grid_base_x_i + @as(i64, @intCast(gx));
-      const noise_grid_y_i: i64 = noise_grid_base_y_i + @as(i64, @intCast(gy));
-      
-      const u64_idx: u64 = hash.custom_hash(
+      const u64_idx: u64 = hash.custom_hash_v1_no_init(
         cfg.seed, 
-        noise_grid_x_i, 
-        noise_grid_y_i
+        @as(u64, @bitCast(noise_grid_base_x_i)) + gx,
+        @as(u64, @bitCast(noise_grid_base_y_i)) + gy
       );
 
       gc[0][gy * gps + gx] = table.grad_soa[0][u64_idx & table.grad_mask];
@@ -95,8 +103,8 @@ pub fn perlin_generate_chunk2d(
   chunk_y: i64,
   out_buffer: []i16,
   gc: [2][]i16,
-  scratch_allocator: anytype,
-) void {
+  scratch_allocator: std.mem.Allocator,
+) !void {
   _ = scratch_allocator;
   const cs_u: u64 = @intCast(cfg.chunk_size);
   const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
@@ -121,13 +129,13 @@ pub fn perlin_generate_chunk2d(
   const arr_world_off_x_u: u64 = @as(u64, @bitCast(arr_world_base_x_i )) & sc_m;
   const arr_world_off_y_u: u64 = @as(u64, @bitCast(arr_world_base_y_i )) & sc_m;
 
-  const q15_4_vec_i: Vec_i = @splat(@as(i16, 4)); // Para compensar gradientes a mitad de escala.
-  const q15_one: Vec_i = @splat(@as(i16, 0x7FFF));
-
   const min_dim: u64 = @as(u64, @intCast(@min(cs_u, sc_u)));
+  const vec_count: u64 = min_dim / LANES;
 
   const values_base: [*]const i16 = cfg.cached_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
   const smooth_base: [*]const i16 = cfg.cached_smoothed_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
+  const values_cache_vec: [*]const Vec_i = @as([*]const Vec_i, @ptrCast(@alignCast(values_base)));
+  const smooth_cache_vec: [*]const Vec_i = @as([*]const Vec_i, @ptrCast(@alignCast(smooth_base)));
 
   for (0..(gps - 1)) |gy| {
     const noise_local_tile_y_u: u64 = (gps - 1) - gy - 1;
@@ -136,17 +144,22 @@ pub fn perlin_generate_chunk2d(
     for (0..(gps - 1)) |gx| {
       const arr_world_tile_x_u: u64 = gx * sc_u;
 
-      const g00x: Vec_i = @splat(gc[0][gy * gps + gx]);
-      const g00y: Vec_i = @splat(gc[1][gy * gps + gx]);
+      const idx00 = gy * gps + gx;
+      const idx10 = idx00 + 1;
+      const idx01 = (gy + 1) * gps + gx;
+      const idx11 = idx01 + 1;
 
-      const g10x: Vec_i = @splat(gc[0][gy * gps + (gx + 1)]);
-      const g10y: Vec_i = @splat(gc[1][gy * gps + (gx + 1)]);
+      const g00x: Vec_i = @splat(gc[0][idx00]);
+      const g00y: Vec_i = @splat(gc[1][idx00]);
 
-      const g01x: Vec_i = @splat(gc[0][(gy + 1) * gps + gx]); 
-      const g01y: Vec_i = @splat(gc[1][(gy + 1) * gps + gx]);
+      const g10x: Vec_i = @splat(gc[0][idx10]);
+      const g10y: Vec_i = @splat(gc[1][idx10]);
 
-      const g11x: Vec_i = @splat(gc[0][(gy + 1) * gps + (gx + 1)]);
-      const g11y: Vec_i = @splat(gc[1][(gy + 1) * gps + (gx + 1)]);
+      const g01x: Vec_i = @splat(gc[0][idx01]); 
+      const g01y: Vec_i = @splat(gc[1][idx01]);
+
+      const g11x: Vec_i = @splat(gc[0][idx11]);
+      const g11y: Vec_i = @splat(gc[1][idx11]);
 
       for (0..min_dim) |ly| {
         const noise_local_y_idx_u: u64 = (min_dim - ly - 1 - arr_world_off_y_u) & sc_m;
@@ -154,23 +167,24 @@ pub fn perlin_generate_chunk2d(
         const sy: i16 = cfg.cached_smoothed_values[noise_local_y_idx_u];
 
         const y_vec: Vec_i = @splat(noise_local_y_f);
-        const y_minus_1_vec: Vec_i = @splat(noise_local_y_f - 0x7FFF);
+        const y_minus_1_vec: Vec_i = @splat(noise_local_y_f - Q15_ONE);
         const sy_vec: Vec_i = @splat(sy);
 
         const matrix_offset: u64 = arr_world_tile_x_u + (arr_world_tile_y_u + ly) * cs_u;
         const out_row_ptr: [*]i16 = out_buffer.ptr + @as(u64, @intCast(matrix_offset));
+        const out_row_vec: [*]Vec_i = @as([*]Vec_i, @ptrCast(@alignCast(out_row_ptr)));
 
         const g00y_vec: Vec_i = vector_math.mul_q15_round(g00y, y_vec);
         const g10y_vec: Vec_i = vector_math.mul_q15_round(g10y, y_vec);
         const g01y_vec: Vec_i = vector_math.mul_q15_round(g01y, y_minus_1_vec);
         const g11y_vec: Vec_i = vector_math.mul_q15_round(g11y, y_minus_1_vec);
 
-        var lx: u64 = 0;
-        while (lx < min_dim) : (lx += LANES) {
-          const x_vec: Vec_i = load_vec_aligned(values_base, lx);
-          const sx_vec: Vec_i = load_vec_aligned(smooth_base, lx);
 
-          const x_minus_1_vec: Vec_i = x_vec - q15_one;
+        for(0..vec_count) |vec_idx| {
+          const x_vec: Vec_i = values_cache_vec[vec_idx];
+          const sx_vec: Vec_i = smooth_cache_vec[vec_idx];
+
+          const x_minus_1_vec: Vec_i = x_vec - VEC_Q15_ONE;
 
           const d00: Vec_i = vector_math.mul_q15_round(g00x, x_vec) + g00y_vec;
           const d10: Vec_i = vector_math.mul_q15_round(g10x, x_minus_1_vec) + g10y_vec;
@@ -181,7 +195,7 @@ pub fn perlin_generate_chunk2d(
           const interp1: Vec_i = vector_math.mul_q15_round(sx_vec, d11 - d01) + d01;
           const value_vec: Vec_i = vector_math.mul_q15_round(sy_vec, interp1 - interp0) + interp0;
 
-          store_vec_aligned(out_row_ptr, lx, value_vec * q15_4_vec_i);
+          out_row_vec[vec_idx] = value_vec * VEC_Q15_FOUR;
         }
       }
     }
