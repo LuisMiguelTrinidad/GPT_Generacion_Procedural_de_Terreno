@@ -1,22 +1,21 @@
 const std = @import("std");
 const config = @import("../config.zig");
 const image_types = @import("types.zig");
+const registry = @import("../../noise/perlin/registry.zig");
 
 pub fn build_composite_gray8(
-	comptime mod: type,
+	comptime mode: registry.OptMode,
 	comptime Sample: type,
 	comptime sample_to_gray8: fn (Sample) u8,
 	perlin_cfg: anytype,
 	chunk_buffer: []Sample,
-	gc_buffer: anytype,
 	allocator: std.mem.Allocator,
 	save_chunks_per_side: u64,
 ) !image_types.Gray8Image {
-	const has_workspace = comptime @hasDecl(mod, "workspace_bytes") and @hasDecl(mod, "WorkspaceAlignment");
-	const workspace_bytes = comptime if (has_workspace) mod.workspace_bytes(config.CHUNK_SIZE, config.SCALE) else 0;
-	const workspace_alignment = comptime if (has_workspace) mod.WorkspaceAlignment else 1;
+	const scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
 
-	var workspace_buffer: [workspace_bytes]u8 align(workspace_alignment) = undefined;
+	var gc_buffer: [scratch.gc_bytes]u8 align(scratch.gc_alignment) = undefined;
+	var workspace_buffer: [scratch.workspace_bytes]u8 align(scratch.workspace_alignment) = undefined;
 
 	const cs_usize: usize = @intCast(perlin_cfg.chunk_size);
 	const chunks_per_side_usize: usize = @intCast(save_chunks_per_side);
@@ -27,29 +26,38 @@ pub fn build_composite_gray8(
 	errdefer allocator.free(image_bytes);
 
 	const save_chunks_i64: i64 = @intCast(save_chunks_per_side);
-	const half: i64 = @divFloor(save_chunks_i64, 2);
+	const half: i64 = @divTrunc(save_chunks_i64, 2);
 
 	const min_idx: i64 = -half;
 	const max_idx: i64 = save_chunks_i64 - half;
 
-	var workspace_fba = std.heap.FixedBufferAllocator.init(&workspace_buffer);
-	const workspace_allocator = workspace_fba.allocator();
+	const grid_size: usize = @intCast(max_idx - min_idx);
+	for (0..grid_size) |grid_y| {
+		for (0..grid_size) |grid_x| {
 
-	var y_idx: i64 = min_idx;
-	while (y_idx < max_idx) : (y_idx += 1) {
-		var x_idx: i64 = min_idx;
-		while (x_idx < max_idx) : (x_idx += 1) {
+			const y_idx: i64 = min_idx + @as(i64, @intCast(grid_y));
+			const x_idx: i64 = min_idx + @as(i64, @intCast(grid_x));
+
 			const eval_y = save_chunks_i64 - 1 - y_idx;
 
-			workspace_fba.reset();
-			try mod.perlin_generate_chunk2d(perlin_cfg, x_idx, eval_y, chunk_buffer, gc_buffer, workspace_allocator);
+			try registry.generate_chunk2d(
+				mode,
+				config.CHUNK_SIZE,
+				config.SCALE,
+				perlin_cfg,
+				x_idx,
+				eval_y,
+				chunk_buffer,
+				gc_buffer[0..scratch.gc_bytes],
+				workspace_buffer[0..scratch.workspace_bytes],
+			);
 
+			// Iteración sub-chunk
 			for (0..cs_usize) |row| {
-				const grid_y: usize = @intCast(y_idx - min_idx);
+				// grid_y ya es usize, evitando el casting interno que existía en el código original.
 				const global_y = grid_y * cs_usize + row;
 
 				for (0..cs_usize) |col| {
-					const grid_x: usize = @intCast(x_idx - min_idx);
 					const global_x = grid_x * cs_usize + col;
 
 					const sample = chunk_buffer[row * cs_usize + col];

@@ -21,13 +21,18 @@ const mode_modules = .{
 
 pub const OptMode = std.meta.FieldEnum(@TypeOf(mode_modules));
 pub const SampleKind = mode_meta.SampleKind;
-pub const GradLayout = mode_meta.GradLayout;
 
 pub const ModeSpec = struct {
 	module: type,
 	sample_kind: SampleKind,
-	grad_layout: GradLayout,
 	required_alignment: u29,
+};
+
+pub const ScratchSpec = struct {
+	gc_bytes: usize,
+	gc_alignment: u29,
+	workspace_bytes: usize,
+	workspace_alignment: u29,
 };
 
 fn mode_module(comptime mode: OptMode) type {
@@ -39,9 +44,79 @@ pub fn get_mode_spec(comptime mode: OptMode) ModeSpec {
 	return .{
 		.module = mod,
 		.sample_kind = mod.sample_kind,
-		.grad_layout = mod.grad_layout,
 		.required_alignment = mod.RequiredAlignment,
 	};
+}
+
+pub fn get_mode_scratch_spec(
+	comptime mode: OptMode,
+	comptime chunk_size: u64,
+	comptime scale: u64,
+) ScratchSpec {
+	return switch (mode) {
+		.O2 => .{
+			.gc_bytes = perlin_O2.gc_bytes(chunk_size, scale),
+			.gc_alignment = @as(u29, @intCast(perlin_O2.GCAlignment)),
+			.workspace_bytes = 0,
+			.workspace_alignment = 1,
+		},
+		.O6 => .{
+			.gc_bytes = 0,
+			.gc_alignment = 1,
+			.workspace_bytes = perlin_O6.workspace_bytes(chunk_size, scale),
+			.workspace_alignment = @as(u29, @intCast(perlin_O6.WorkspaceAlignment)),
+		},
+		else => .{
+			.gc_bytes = 0,
+			.gc_alignment = 1,
+			.workspace_bytes = 0,
+			.workspace_alignment = 1,
+		},
+	};
+}
+
+pub inline fn generate_chunk2d(
+	comptime mode: OptMode,
+	comptime chunk_size: u64,
+	comptime scale: u64,
+	cfg: anytype,
+	chunk_x: i64,
+	chunk_y: i64,
+	out_buffer: anytype,
+	gc_buf: []u8,
+	workspace_buf: []u8,
+) !void {
+	switch (mode) {
+		.O0 => {
+			return perlin_O0.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+		},
+		.O1 => {
+			return perlin_O1.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+		},
+		.O2 => {
+			return perlin_O2.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer, gc_buf);
+		},
+		.O3 => {
+			return perlin_O3.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+		},
+		.O4 => {
+			return perlin_O4.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+		},
+		.O5 => {
+			return perlin_O5.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+		},
+		.O6 => {
+			return perlin_O6.perlin_generate_chunk2d(
+				cfg,
+				chunk_x,
+				chunk_y,
+				out_buffer,
+				workspace_buf,
+				chunk_size,
+				scale,
+			);
+		},
+	}
 }
 
 pub fn parse_mode(mode_arg: []const u8) ?OptMode {

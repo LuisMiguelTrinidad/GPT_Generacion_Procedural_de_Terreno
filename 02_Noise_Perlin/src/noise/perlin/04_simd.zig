@@ -1,5 +1,3 @@
-const std = @import("std");
-
 const table = @import("../../core/f32/table.zig");
 const types = @import("../../core/f32/types.zig");
 const vector_math = @import("../../core/f32/vector_math.zig");
@@ -16,7 +14,6 @@ const VEC_ALIGN: u29 = @alignOf(VecF);
 
 pub const RequiredAlignment: u29 = @max(VEC_ALIGN, SIMD_ALIGNMENT);
 pub const sample_kind: mode_meta.SampleKind = .f32;
-pub const grad_layout: mode_meta.GradLayout = .soa;
 comptime {
   if (@popCount(RequiredAlignment) != 1) {
     @compileError("RequiredAlignment must be a power of two");
@@ -69,35 +66,12 @@ pub fn perlin_init_config(
   };
 }
 
-inline fn precompute_gradients(
-  noise_grid_base_x_i: i64,
-  noise_grid_base_y_i: i64,
-  gps: usize,
-  cfg: types.PerlinConfig,
-  gc: [2][]f32,
-) void {  for (0..gps) |gy| {
-    for (0..gps) |gx| {
-      const u64_idx: u64 = hash.custom_hash_v1_no_init(
-        cfg.seed, 
-        @as(u64, @bitCast(noise_grid_base_x_i)) + gx,
-        @as(u64, @bitCast(noise_grid_base_y_i)) + gy
-      ) & table.grad_mask;
-      gc[0][gy * gps + gx] = table.grad_soa[0][u64_idx];
-      gc[1][gy * gps + gx] = table.grad_soa[1][u64_idx];
-    }
-  }
-}
-
 pub fn perlin_generate_chunk2d(
   cfg: types.PerlinConfig,
   chunk_x: i64,
   chunk_y: i64,
   out_buffer: []f32,
-  gc: [2][]f32,
-  scratch_allocator: std.mem.Allocator,
 ) !void {
-  _ = scratch_allocator;
-  
   const cs_u: u64 = @intCast(cfg.chunk_size);
   const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
 
@@ -108,15 +82,11 @@ pub fn perlin_generate_chunk2d(
   const arr_world_base_x_i: i64 = chunk_x * cs_i;
   const arr_world_base_y_i: i64 = chunk_y * cs_i;
 
+  const noise_grid_base_x_i: i64 = arr_world_base_x_i >> sc_l;
+  const noise_grid_base_y_i: i64 = arr_world_base_y_i >> sc_l;
+
   // gps = grids per chunk side (minimum 2 to cover cell corners)
   const gps: usize = @max(@as(u64, @intCast(cs_u >> sc_l)), 1) + 1;
-  precompute_gradients(
-    arr_world_base_x_i >> sc_l, 
-    arr_world_base_y_i >> sc_l, 
-    gps, 
-    cfg, 
-    gc
-  );
 
   const arr_world_off_x_u: u64 = @as(u64, @bitCast(arr_world_base_x_i )) & sc_m;
   const arr_world_off_y_u: u64 = @as(u64, @bitCast(arr_world_base_y_i )) & sc_m;
@@ -137,22 +107,43 @@ pub fn perlin_generate_chunk2d(
     for (0..(gps - 1)) |gx| {
       const arr_world_tile_x_u: u64 = gx * sc_u;
 
-      const idx00 = gy * gps + gx;
-      const idx10 = idx00 + 1;
-      const idx01 = (gy + 1) * gps + gx;
-      const idx11 = idx01 + 1;
+      const noise_grid_x0_i: i64 = noise_grid_base_x_i + @as(i64, @intCast(gx));
+      const noise_grid_y0_i: i64 = noise_grid_base_y_i + @as(i64, @intCast(gy));
+      const noise_grid_x1_i: i64 = noise_grid_x0_i + 1;
+      const noise_grid_y1_i: i64 = noise_grid_y0_i + 1;
 
-      const g00x: VecF = @splat(gc[0][idx00]);
-      const g00y: VecF = @splat(gc[1][idx00]);
+      const g00_idx: u64 = hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x0_i)),
+        @as(u64, @bitCast(noise_grid_y0_i)),
+      ) & table.grad_mask;
+      const g10_idx: u64 = hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x1_i)),
+        @as(u64, @bitCast(noise_grid_y0_i)),
+      ) & table.grad_mask;
+      const g01_idx: u64 = hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x0_i)),
+        @as(u64, @bitCast(noise_grid_y1_i)),
+      ) & table.grad_mask;
+      const g11_idx: u64 = hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x1_i)),
+        @as(u64, @bitCast(noise_grid_y1_i)),
+      ) & table.grad_mask;
 
-      const g10x: VecF = @splat(gc[0][idx10]);
-      const g10y: VecF = @splat(gc[1][idx10]);
+      const g00x: VecF = @splat(table.grad_soa[0][g00_idx]);
+      const g00y: VecF = @splat(table.grad_soa[1][g00_idx]);
 
-      const g01x: VecF = @splat(gc[0][idx01]);
-      const g01y: VecF = @splat(gc[1][idx01]);
+      const g10x: VecF = @splat(table.grad_soa[0][g10_idx]);
+      const g10y: VecF = @splat(table.grad_soa[1][g10_idx]);
 
-      const g11x: VecF = @splat(gc[0][idx11]);
-      const g11y: VecF = @splat(gc[1][idx11]);
+      const g01x: VecF = @splat(table.grad_soa[0][g01_idx]);
+      const g01y: VecF = @splat(table.grad_soa[1][g01_idx]);
+
+      const g11x: VecF = @splat(table.grad_soa[0][g11_idx]);
+      const g11y: VecF = @splat(table.grad_soa[1][g11_idx]);
 
       for (0..min_dim) |ly| {
         const noise_local_y_idx_u: u64 = (min_dim - ly - 1 - arr_world_off_y_u) & sc_m;

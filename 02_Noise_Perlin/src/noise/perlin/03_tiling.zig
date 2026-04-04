@@ -1,5 +1,3 @@
-const std = @import("std");
-
 const table = @import("../../core/f32/table.zig");
 const types = @import("../../core/f32/types.zig");
 
@@ -10,7 +8,6 @@ const mode_meta = @import("mode_meta.zig");
 
 pub const RequiredAlignment = @alignOf(f32);
 pub const sample_kind: mode_meta.SampleKind = .f32;
-pub const grad_layout: mode_meta.GradLayout = .aos;
 
 pub fn perlin_init_config(
   values_buf: []f32,
@@ -47,36 +44,12 @@ pub fn perlin_init_config(
   };
 }
 
-inline fn precompute_gradients(
-  noise_grid_base_x_i: i64,
-  noise_grid_base_y_i: i64,
-  gps: usize,
-  cfg: types.PerlinConfig,
-  gc: [][2]f32,
-) void {
-  for (0..gps) |gy| {
-    for (0..gps) |gx| {
-      const u64_idx: u64 = hash.custom_hash_v1_no_init(
-        cfg.seed, 
-        @as(u64, @bitCast(noise_grid_base_x_i)) + gx,
-        @as(u64, @bitCast(noise_grid_base_y_i)) + gy
-      );
-
-      gc[gy * gps + gx] = table.grad[u64_idx & table.grad_mask];
-    }
-  }
-}
-
 pub fn perlin_generate_chunk2d(
   cfg: types.PerlinConfig, 
   chunk_x: i64, 
   chunk_y: i64, 
   out_buffer: []f32,
-  gc: [][2]f32,
-  scratch_allocator: std.mem.Allocator,
 ) !void {
-	_ = scratch_allocator;
-
 	// cs = chunk size
   const cs_u: u64 = @intCast(cfg.chunk_size);
   const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
@@ -88,16 +61,12 @@ pub fn perlin_generate_chunk2d(
 	// Array-space world coordinate for the chunk origin
   const arr_world_base_x_i: i64 = chunk_x * cs_i;
   const arr_world_base_y_i: i64 = chunk_y * cs_i;
+
+  const noise_grid_base_x_i: i64 = arr_world_base_x_i >> sc_l;
+  const noise_grid_base_y_i: i64 = arr_world_base_y_i >> sc_l;
   
   // gps = grids per chunk side (minimum 2 to cover cell corners)
   const gps: usize = @max(@as(u64, @intCast(cs_u >> sc_l)), 1) + 1;
-  precompute_gradients(
-    arr_world_base_x_i >> sc_l, 
-    arr_world_base_y_i >> sc_l, 
-    gps, 
-    cfg, 
-    gc
-  );
 
   // Array-world offsets for correct indexing in precomputed lookup tables (tiling)
   // Bitwise AND works with two's-complement negative values
@@ -114,10 +83,31 @@ pub fn perlin_generate_chunk2d(
 		for (0..(gps-1)) |gx| {
 			const arr_world_tile_x_u: u64 = gx * sc_u;
 
-			const g00: [2]f32 = gc[gy * gps + gx];
-      const g10: [2]f32 = gc[gy * gps + (gx + 1)];
-      const g01: [2]f32 = gc[(gy + 1) * gps + gx];
-      const g11: [2]f32 = gc[(gy + 1) * gps + (gx + 1)];
+      const noise_grid_x0_i: i64 = noise_grid_base_x_i + @as(i64, @intCast(gx));
+      const noise_grid_y0_i: i64 = noise_grid_base_y_i + @as(i64, @intCast(gy));
+      const noise_grid_x1_i: i64 = noise_grid_x0_i + 1;
+      const noise_grid_y1_i: i64 = noise_grid_y0_i + 1;
+
+      const g00: [2]f32 = table.grad[hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x0_i)),
+        @as(u64, @bitCast(noise_grid_y0_i)),
+      ) & table.grad_mask];
+      const g10: [2]f32 = table.grad[hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x1_i)),
+        @as(u64, @bitCast(noise_grid_y0_i)),
+      ) & table.grad_mask];
+      const g01: [2]f32 = table.grad[hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x0_i)),
+        @as(u64, @bitCast(noise_grid_y1_i)),
+      ) & table.grad_mask];
+      const g11: [2]f32 = table.grad[hash.custom_hash_v1_no_init(
+        cfg.seed,
+        @as(u64, @bitCast(noise_grid_x1_i)),
+        @as(u64, @bitCast(noise_grid_y1_i)),
+      ) & table.grad_mask];
 
 			for (0..min_dim) |ly| {
         const noise_local_y_u: u64 = min_dim - ly - 1;

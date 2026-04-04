@@ -7,13 +7,14 @@ const image_writer = @import("image_writer.zig");
 const registry = @import("../../noise/perlin/registry.zig");
 
 pub fn run_mode_f32(
+	comptime mode: registry.OptMode,
 	allocator: std.mem.Allocator,
 	stdout: anytype,
 	stderr: anytype,
 	comptime spec: registry.ModeSpec,
 	mode_str: []const u8,
-	warmup_chunks: u64,
-	benchmark_chunks: u64,
+	warmup_chunk_count: u64,
+	benchmark_chunk_count: u64,
 	save_chunks_per_side: u64,
 ) !void {
 	const mod = spec.module;
@@ -39,81 +40,35 @@ pub fn run_mode_f32(
 	const chunk_buffer = try allocator.alignedAlloc(f32, alloc_alignment, perlin_cfg.chunk_size * perlin_cfg.chunk_size);
 	defer allocator.free(chunk_buffer);
 
-	const grids_per_side: u64 = @as(u64, @max(config.CHUNK_SIZE / config.SCALE, 1)) + 1;
+	try runner.run_warmup(
+		mode,
+		perlin_cfg,
+		chunk_buffer,
+		warmup_chunk_count,
+	);
+	const benchmark_result = try runner.run_benchmark_pass(
+		mode,
+		perlin_cfg,
+		chunk_buffer,
+		benchmark_chunk_count,
+	);
 
-	switch (spec.grad_layout) {
-		.soa => {
-			var gc_buffer_soa: [2][grids_per_side * grids_per_side]f32 = undefined;
-			const gc_buffer_soa_slice = [2][]f32{ &gc_buffer_soa[0], &gc_buffer_soa[1] };
+	const total_points = benchmark_chunk_count * perlin_cfg.chunk_size * perlin_cfg.chunk_size;
+	try report.print_benchmark_report(
+		stdout,
+		benchmark_chunk_count,
+		total_points,
+		benchmark_result,
+	);
 
-			try runner.run_warmup(
-				mod, 
-				perlin_cfg, 
-				chunk_buffer, 
-				gc_buffer_soa_slice, 
-				warmup_chunks
-			);
-			const benchmark_result = try runner.run_benchmark_pass(
-				mod, 
-				perlin_cfg, 
-				chunk_buffer, 
-				gc_buffer_soa_slice, 
-				benchmark_chunks);
-
-			const total_points = benchmark_chunks * perlin_cfg.chunk_size * perlin_cfg.chunk_size;
-			try report.print_benchmark_report(stdout, 
-				benchmark_chunks, 
-				total_points, 
-				benchmark_result
-			);
-
-			try image_writer.write_composite_image(
-				allocator,
-				stdout, stderr,
-				mod,
-				perlin_cfg,
-				chunk_buffer,
-				gc_buffer_soa_slice,
-				mode_str,
-				save_chunks_per_side,
-			);
-		},
-		.aos => {
-			var gc_buffer_aos: [grids_per_side * grids_per_side][2]f32 = undefined;
-
-			try runner.run_warmup(
-				mod, 
-				perlin_cfg, 
-				chunk_buffer, 
-				&gc_buffer_aos, 
-				warmup_chunks
-			);
-			const benchmark_result = try runner.run_benchmark_pass(
-				mod, 
-				perlin_cfg, 
-				chunk_buffer, 
-				&gc_buffer_aos, 
-				benchmark_chunks
-			);
-
-			const total_points = benchmark_chunks * perlin_cfg.chunk_size * perlin_cfg.chunk_size;
-			try report.print_benchmark_report(
-				stdout, 
-				benchmark_chunks, 
-				total_points, 
-				benchmark_result
-			);
-
-			try image_writer.write_composite_image(
-				allocator,
-				stdout, stderr,
-				mod,
-				perlin_cfg,
-				chunk_buffer,
-				&gc_buffer_aos,
-				mode_str,
-				save_chunks_per_side,
-			);
-		},
-	}
+	try image_writer.write_composite_image(
+		allocator,
+		stdout,
+		stderr,
+		mode,
+		perlin_cfg,
+		chunk_buffer,
+		mode_str,
+		save_chunks_per_side,
+	);
 }

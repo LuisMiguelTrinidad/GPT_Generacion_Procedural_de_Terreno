@@ -1,5 +1,3 @@
-const std = @import("std");
-
 const table = @import("../../core/f32/table.zig");
 const types = @import("../../core/f32/types.zig");
 
@@ -10,7 +8,6 @@ const mode_meta = @import("mode_meta.zig");
 
 pub const RequiredAlignment = @alignOf(f32);
 pub const sample_kind: mode_meta.SampleKind = .f32;
-pub const grad_layout: mode_meta.GradLayout = .aos;
 
 pub fn perlin_init_config(
   values_buf: []f32,
@@ -49,12 +46,7 @@ pub fn perlin_generate_chunk2d(
   chunk_x: i64, 
   chunk_y: i64, 
   out_buffer: []f32,
-  gc: [][2]f32,
-  scratch_allocator: std.mem.Allocator,
 ) !void {
-  _ = gc;
-  _ = scratch_allocator;
-  
   const cs_u: u64 = cfg.chunk_size;
   const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
 
