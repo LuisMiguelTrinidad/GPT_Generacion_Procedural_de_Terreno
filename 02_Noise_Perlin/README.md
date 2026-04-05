@@ -5,7 +5,7 @@ Implementación y benchmark de ruido Perlin en Zig, con múltiples variantes de 
 ## Requisitos
 
 - Zig `0.15.2`
-- CPU con SIMD para modos `i16` (`O5`, `O6`): AVX2/AVX512BW en `x86_64` o NEON en `aarch64`
+- CPU con SIMD para modos vectoriales (`O5`, `O6`): AVX2/AVX512BW en `x86_64` o NEON en `aarch64`
 
 ## Instalación y ejecución básica
 
@@ -29,11 +29,11 @@ zig build --release=fast run -- O5
 - `O1`: variante con hash custom para reducir coste respecto al baseline.
 - `O2`: caching de valores auxiliares para disminuir recomputación.
 - `O3`: pseudotiling/indexación optimizada y mejor localidad.
-- `O4`: versión SIMD en `f32`.
-- `O5`: versión SIMD en punto fijo `i16`.
-- `O6`: versión `i16` con unroll adicional y cacheado de cálculo en L1.
+- `O4`: versión `f32` con estructura LICM
+- `O5`: versión SIMD en `f32` basada en la estructura de `O4`.
+- `O6`: versión SIMD en punto fijo `i16` (FPA) con cache intermedia.
 
-El backend SIMD se resuelve en `core/shared/arch_caps.zig` con prioridad `AVX512BW -> AVX2 -> NEON -> scalar` (según target y CPU features). Los modos `i16` (`O5`, `O6`) usan ese ancho vectorial a través de `core/i16/vector_math.zig`.
+El backend SIMD se resuelve en `core/shared/arch_caps.zig` con prioridad `AVX512BW -> AVX2 -> NEON -> scalar` (según target y CPU features). Los modos vectoriales `O5` (`f32`) y `O6` (`i16`) usan ese despacho a través de `core/f32/vector_math.zig` y `core/i16/vector_math.zig`.
 
 > Nota: Los nombres `O0..O6` son etiquetas de variante del algoritmo, no equivalen directamente a flags de optimización del compilador Zig.
 
@@ -77,14 +77,14 @@ src/
       vector_math.zig       # Operaciones Q0.15 + intrinsics AVX/NEON
 
   noise/perlin/
-    mode_meta.zig          # Enums compartidos (SampleKind, GradLayout)
+    mode_meta.zig          # Enums compartidos (SampleKind)
     00_ref.zig
     01_custom_hash.zig
     02_caching.zig
     03_tiling.zig
-    04_simd.zig
-    05_fpa.zig
-    06_licm.zig
+    04_licm.zig
+    05_simd.zig
+    06_fpa.zig
     registry.zig           # Mapeo O0..O6 -> implementación + metadatos
 ```
 
@@ -116,22 +116,21 @@ Estas restricciones salen del código actual de las variantes (`O0..O6`) y del p
   - Se usa `@ctz(SCALE)` y máscara `SCALE - 1` para indexación modular (`idx & (SCALE - 1)`).
   - Si no es potencia de 2, la indexación de tiles/celdas deja de ser correcta.
 - En modos vectoriales, `min(CHUNK_SIZE, SCALE)` debe ser múltiplo del ancho vectorial.
-  - `O4` (`f32`, 8 lanes): múltiplo de **8**.
-  - `O5` y `O6` (`i16`): múltiplo de `LANES` (**16 con AVX2**, **32 con AVX512BW**, **8 con NEON**).
-  - Si no se cumple, los `load/store` vectoriales alineados pueden leer/escribir fuera de bloque.
-- En `O6`, además, `min(CHUNK_SIZE, SCALE)` debe ser múltiplo de **4** (por `UNROLL_FACTOR = 4`).
-  - El bucle de filas avanza de 4 en 4 y prepara 4 filas por iteración.
-- Estas condiciones se validan en `comptime` en `O5`/`O6` (fallan en compilación si no se cumplen).
-- Los modos `i16` (`O5`, `O6`) requieren backend SIMD válido para `i16`.
-  - Si el target incluye AVX512BW usan 32 lanes; con AVX2 usan 16; en `aarch64` con NEON usan 8.
+  - `O5` (`f32`): múltiplo de `LANES` (**8 con AVX2**, **16 con AVX512BW**, **4 con NEON**).
+  - `O6` (`i16`): múltiplo de `LANES``; **16 con AVX2**, **32 con AVX512BW**, **8 con NEON**).
+  - Si no se cumple, falla la validación de `comptime` en la inicialización de configuración.
+- Validaciones en `comptime` por modo:
+  - `O4`: valida potencia de 2 en `SCALE`.
+  - `O5` y `O6`: validan potencia de 2 en `SCALE` y múltiplo de ancho vectorial en `min(CHUNK_SIZE, SCALE)`.
+- El modo `O6` (`i16`) requiere backend SIMD válido para su ancho vectorial.
 - La alineación requerida por cada modo debe respetarse.
   - Se obtiene vía `registry.get_mode_spec(...).required_alignment` y se valida como potencia de 2.
   - El código ya reserva buffers con esa alineación (`alignedAlloc`).
 
 ### Restricciones prácticas/recomendadas
-- Para benchmark estable, usa `CHUNK_SIZE` y `SCALE` como potencias de 2 y, preferiblemente, iguales (por ejemplo `512/512`, como en `config.zig`).
-- En `i16` (`O5`, `O6`), mantener `SCALE <= 32768` evita problemas con la representación Q0.15 al precalcular `cached_values`.
-- Si quieres portabilidad en targets sin backend SIMD válido para `i16`, usa `O0..O4`.
+- Para benchmark estable, usa `CHUNK_SIZE` y `SCALE` como potencias de 2 y, preferiblemente, iguales (por ejemplo `256/256`, como en `config.zig`).
+- En `i16` (`O6`), mantener `SCALE <= 32768` evita problemas con la representación Q0.15 al precalcular `cached_values`.
+- Si quieres portabilidad en targets sin backend SIMD válido para `i16`, usa `O0..O5`.
 
 ### Nota sobre parámetros no usados
 

@@ -6,7 +6,7 @@ const math = @import("../../core/shared/math.zig");
 
 const mode_meta = @import("mode_meta.zig");
 
-pub const RequiredAlignment = @alignOf(f32);
+pub const RequiredAlignment: u29 = @alignOf(f32);
 pub const sample_kind: mode_meta.SampleKind = .f32;
 
 pub fn perlin_init_config(
@@ -54,12 +54,10 @@ pub fn perlin_generate_chunk2d(
   const sc_l: u6  = @as(u6, @intCast(@ctz(cfg.scale))); 
   const sc_inv_f: f32 = 1.0 / @as(f32, @floatFromInt(sc_i));
 
-  // Array-space world coordinate for the chunk origin
   const arr_world_base_x_i: i64 = chunk_x * cs_i;
   const arr_world_base_y_i: i64 = chunk_y * cs_i;
 
   for (0..cs_u) |y| {
-    // Noise-space Y grows upward while array rows grow downward
     const arr_local_y_i: i64 = cs_i - @as(i64, @intCast(y)) - 1;
     const arr_world_y_i: i64 = arr_world_base_y_i + arr_local_y_i;
         
@@ -77,46 +75,22 @@ pub fn perlin_generate_chunk2d(
       const noise_grid_x0_i: i64 = arr_world_x_i >> sc_l;
       const noise_grid_x1_i: i64 = noise_grid_x0_i + 1;
 
-      const g_bl: [2]f32 = table.grad[
-				hash.custom_hash_v1_no_init(
-          cfg.seed, 
-          @as(u64, @bitCast(noise_grid_x0_i)),
-          @as(u64, @bitCast(noise_grid_y0_i))
-        ) & table.grad_mask
-      ];
-      const g_br: [2]f32 = table.grad[
-				hash.custom_hash_v1_no_init(
-          cfg.seed, 
-          @as(u64, @bitCast(noise_grid_x1_i)), 
-          @as(u64, @bitCast(noise_grid_y0_i))
-        ) & table.grad_mask
-      ];
-      const g_tl: [2]f32 = table.grad[
-				hash.custom_hash_v1_no_init(
-          cfg.seed, 
-          @as(u64, @bitCast(noise_grid_x0_i)), 
-          @as(u64, @bitCast(noise_grid_y1_i))
-        ) & table.grad_mask
-      ];
-      const g_tr: [2]f32 = table.grad[
-				hash.custom_hash_v1_no_init(
-          cfg.seed, 
-          @as(u64, @bitCast(noise_grid_x1_i)), 
-          @as(u64, @bitCast(noise_grid_y1_i))
-        ) & table.grad_mask
-      ];
+      const g00: [2]f32 = table.grad[hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x0_i), @bitCast(noise_grid_y0_i)) & table.grad_mask];
+      const g10: [2]f32 = table.grad[hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x1_i), @bitCast(noise_grid_y0_i)) & table.grad_mask];
+      const g01: [2]f32 = table.grad[hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x0_i), @bitCast(noise_grid_y1_i)) & table.grad_mask];
+      const g11: [2]f32 = table.grad[hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x1_i), @bitCast(noise_grid_y1_i)) & table.grad_mask];
 
-      const d_bl: f32 = math.dot_prod_2d(g_bl[0], g_bl[1], noise_local_x_f, noise_local_y_f);
-      const d_br: f32 = math.dot_prod_2d(g_br[0], g_br[1], noise_local_x_f-1.0, noise_local_y_f);
-      const d_tl: f32 = math.dot_prod_2d(g_tl[0], g_tl[1], noise_local_x_f, noise_local_y_f-1.0);
-      const d_tr: f32 = math.dot_prod_2d(g_tr[0], g_tr[1], noise_local_x_f-1.0, noise_local_y_f-1.0);
+      const d00: f32 = math.dot_prod_2d(g00[0], g00[1], noise_local_x_f, noise_local_y_f);
+      const d10: f32 = math.dot_prod_2d(g10[0], g10[1], noise_local_x_f - 1.0, noise_local_y_f);
+      const d01: f32 = math.dot_prod_2d(g01[0], g01[1], noise_local_x_f, noise_local_y_f - 1.0);
+      const d11: f32 = math.dot_prod_2d(g11[0], g11[1], noise_local_x_f - 1.0, noise_local_y_f - 1.0);
 
       const x_smooth = math.smooth_step(noise_local_x_f);
       const y_smooth = math.smooth_step(noise_local_y_f);
 
       const value = math.lerp(
-        math.lerp(d_bl, d_br, x_smooth),
-        math.lerp(d_tl, d_tr, x_smooth), 
+        math.lerp(d00, d10, x_smooth),
+        math.lerp(d01, d11, x_smooth),
 				y_smooth
       );
 

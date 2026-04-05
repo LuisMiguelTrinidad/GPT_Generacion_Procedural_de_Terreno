@@ -12,10 +12,10 @@ pub fn build_composite_gray8(
 	allocator: std.mem.Allocator,
 	save_chunks_per_side: u64,
 ) !image_types.Gray8Image {
-	const scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
+	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
 
-	var gc_buffer: [scratch.gc_bytes]u8 align(scratch.gc_alignment) = undefined;
-	var workspace_buffer: [scratch.workspace_bytes]u8 align(scratch.workspace_alignment) = undefined;
+	var gradient_cache_buffer: [mode_scratch.gradient_cache_bytes]u8 align(mode_scratch.gradient_cache_alignment) = undefined;
+	var workspace_buffer: [mode_scratch.workspace_bytes]u8 align(mode_scratch.workspace_alignment) = undefined;
 
 	const cs_usize: usize = @intCast(perlin_cfg.chunk_size);
 	const chunks_per_side_usize: usize = @intCast(save_chunks_per_side);
@@ -48,13 +48,11 @@ pub fn build_composite_gray8(
 				x_idx,
 				eval_y,
 				chunk_buffer,
-				gc_buffer[0..scratch.gc_bytes],
-				workspace_buffer[0..scratch.workspace_bytes],
+				gradient_cache_buffer[0..mode_scratch.gradient_cache_bytes],
+				workspace_buffer[0..mode_scratch.workspace_bytes],
 			);
 
-			// Iteración sub-chunk
 			for (0..cs_usize) |row| {
-				// grid_y ya es usize, evitando el casting interno que existía en el código original.
 				const global_y = grid_y * cs_usize + row;
 
 				for (0..cs_usize) |col| {

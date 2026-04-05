@@ -5,7 +5,7 @@ extern fn @"llvm.x86.avx512.pmulhrsw.512"(a: @Vector(32, i16), b: @Vector(32, i1
 extern fn @"llvm.aarch64.neon.sqrdmulh.v8i16"(a: @Vector(8, i16), b: @Vector(8, i16)) @Vector(8, i16);
 
 pub const simd_vector_bytes = arch_caps.simd_vector_bytes;
-pub const q15_lanes: u8 = @as(u8, @intCast(arch_caps.lanes_for(i16)));
+pub const lanes_for = arch_caps.lanes_for;
 
 /// Fixed-point Q0.15 multiply with high-rounding semantics.
 pub inline fn mul_q15_round(a: anytype, b: @TypeOf(a)) @TypeOf(a) {

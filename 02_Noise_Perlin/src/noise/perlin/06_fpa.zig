@@ -7,26 +7,27 @@ const math = @import("../../core/shared/math.zig");
 
 const mode_meta = @import("mode_meta.zig");
 
-const Vec_i = @Vector(vector_math.q15_lanes, i16);
+const LANES: u8 = @as(u8, @intCast(vector_math.lanes_for(i16)));
+const VecI = @Vector(LANES, i16);
+const SIMD_ALIGNMENT: u29 = @as(u29, @intCast(vector_math.simd_vector_bytes()));
+const VEC_ALIGN: u29 = @alignOf(VecI);
 
-pub const RequiredAlignment: u29 = @alignOf(Vec_i);
-pub const WorkspaceAlignment: comptime_int = RequiredAlignment;
+pub const RequiredAlignment: u29 = @max(VEC_ALIGN, SIMD_ALIGNMENT);
 pub const sample_kind: mode_meta.SampleKind = .i16;
 
 pub fn workspace_bytes(comptime chunk_size: u64, comptime scale: u64) usize {
 	const min_dim: u64 = @min(chunk_size, scale);
-	const vec_count: u64 = min_dim / vector_math.q15_lanes;
-	return @as(usize, @intCast(vec_count)) * @sizeOf(Vec_i) * 3;
+	const vec_count: u64 = min_dim / LANES;
+	return @as(usize, @intCast(vec_count)) * @sizeOf(VecI) * 3;
 }
 
-
 comptime {
-	if (@popCount(@as(u64, @alignOf(Vec_i))) != 1) {
+	if (@popCount(@as(u64, RequiredAlignment)) != 1) {
 		@compileError("RequiredAlignment must be a non-zero power of two");
 	}
 }
 
-// --- FUNCIÓN MATEMÁTICA ESCALAR ---
+// Scalar Q0.15 multiply helper.
 inline fn mul_q15_scalar(a: i16, b: i16) i16 {
 	const a32: i32 = @as(i32, a);
 	const b32: i32 = @as(i32, b);
@@ -34,21 +35,21 @@ inline fn mul_q15_scalar(a: i16, b: i16) i16 {
 }
 
 inline fn fill_x_cache(
-	x_sx: [*]Vec_i,
-	x_base_0: [*]Vec_i,
-	x_base_diff: [*]Vec_i,
+	x_sx: [*]VecI,
+	x_base_0: [*]VecI,
+	x_base_diff: [*]VecI,
 	vec_count: usize,
-	values_cache_vec: [*]const Vec_i,
-	smooth_cache_vec: [*]const Vec_i,
-	g00x: Vec_i,
-	g10x: Vec_i,
-	g01x: Vec_i,
-	g11x: Vec_i,
+	values_cache_vec: [*]const VecI,
+	smooth_cache_vec: [*]const VecI,
+	g00x: VecI,
+	g10x: VecI,
+	g01x: VecI,
+	g11x: VecI,
 ) void {
 	for (0..vec_count) |vec_idx| {
-		const x_vec: Vec_i = values_cache_vec[vec_idx];
-		const sx_vec: Vec_i = smooth_cache_vec[vec_idx];
-		const x_m1: Vec_i = x_vec - @as(Vec_i, @splat(0x7FFF));
+		const x_vec: VecI = values_cache_vec[vec_idx];
+		const sx_vec: VecI = smooth_cache_vec[vec_idx];
+		const x_m1: VecI = x_vec - @as(VecI, @splat(0x7FFF));
 
 		const dx00 = vector_math.mul_q15_round(g00x, x_vec);
 		const dx10 = vector_math.mul_q15_round(g10x, x_m1);
@@ -78,7 +79,7 @@ pub inline fn perlin_init_config(
 		if ((@popCount(scale) != 1)) {
 			@compileError("O6 requires SCALE to be a power of two");
 		}
-		if ((@min(chunk_size, scale) % vector_math.q15_lanes) != 0) {
+		if ((@min(chunk_size, scale) % LANES) != 0) {
 			@compileError("O6 requires min(CHUNK_SIZE, SCALE) to be a multiple of LANES");
 		}
 	}
@@ -131,17 +132,17 @@ pub fn perlin_generate_chunk2d(
 	const arr_world_off_x_u: u64 = @as(u64, @bitCast(arr_world_base_x_i)) & sc_m;
 	const arr_world_off_y_u: u64 = @as(u64, @bitCast(arr_world_base_y_i)) & sc_m;
 
-	const MIN_DIM: u64 = @min(chunk_size, scale);
+	const min_dim: u64 = @min(chunk_size, scale);
 
 	const values_base: [*]const i16 = cfg.cached_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
 	const smooth_base: [*]const i16 = cfg.cached_smoothed_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
-	const values_cache_vec: [*]const Vec_i = @as([*]const Vec_i, @ptrCast(@alignCast(values_base)));
-	const smooth_cache_vec: [*]const Vec_i = @as([*]const Vec_i, @ptrCast(@alignCast(smooth_base)));
+	const values_cache_vec: [*]const VecI = @as([*]const VecI, @ptrCast(@alignCast(values_base)));
+	const smooth_cache_vec: [*]const VecI = @as([*]const VecI, @ptrCast(@alignCast(smooth_base)));
 
-	const vec_count: usize = @as(usize, @intCast(@divExact(MIN_DIM, vector_math.q15_lanes)));
-	const x_sx: [*]Vec_i = @ptrCast(@alignCast(workspace_buf.ptr));
-	const x_base_0: [*]Vec_i = x_sx + vec_count;
-	const x_base_diff: [*]Vec_i = x_base_0 + vec_count;
+	const vec_count: usize = @as(usize, @intCast(@divExact(min_dim, LANES)));
+	const x_sx: [*]VecI = @ptrCast(@alignCast(workspace_buf.ptr));
+	const x_base_0: [*]VecI = x_sx + vec_count;
+	const x_base_diff: [*]VecI = x_base_0 + vec_count;
 
 	for (0..(gps - 1)) |gy| {
 		const noise_local_tile_y_u: u64 = (gps - 1) - gy - 1;
@@ -159,23 +160,33 @@ pub fn perlin_generate_chunk2d(
 			const g01_idx: u64 = hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x0_i), @bitCast(noise_grid_y1_i)) & table.grad_mask;
 			const g11_idx: u64 = hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x1_i), @bitCast(noise_grid_y1_i)) & table.grad_mask;
 
-			const g00x: Vec_i = @splat(table.grad_soa[0][g00_idx]);
-			const g10x: Vec_i = @splat(table.grad_soa[0][g10_idx]);
-			const g01x: Vec_i = @splat(table.grad_soa[0][g01_idx]);
-			const g11x: Vec_i = @splat(table.grad_soa[0][g11_idx]);
+			const g00x: VecI = @splat(table.grad_table[0][g00_idx]);
+			const g10x: VecI = @splat(table.grad_table[0][g10_idx]);
+			const g01x: VecI = @splat(table.grad_table[0][g01_idx]);
+			const g11x: VecI = @splat(table.grad_table[0][g11_idx]);
 
-			const g00y_s: i16 = table.grad_soa[1][g00_idx];
-			const g10y_s: i16 = table.grad_soa[1][g10_idx];
-			const g01y_s: i16 = table.grad_soa[1][g01_idx];
-			const g11y_s: i16 = table.grad_soa[1][g11_idx];
+			const g00y_s: i16 = table.grad_table[1][g00_idx];
+			const g10y_s: i16 = table.grad_table[1][g10_idx];
+			const g01y_s: i16 = table.grad_table[1][g01_idx];
+			const g11y_s: i16 = table.grad_table[1][g11_idx];
 
-			fill_x_cache(x_sx, x_base_0, x_base_diff, vec_count, values_cache_vec, smooth_cache_vec, g00x, g10x, g01x, g11x);
+			fill_x_cache(
+				x_sx,
+				x_base_0,
+				x_base_diff,
+				vec_count,
+				values_cache_vec,
+				smooth_cache_vec,
+				g00x,
+				g10x,
+				g01x,
+				g11x,
+			);
 
-			var ly: u64 = 0;
-			var y_idx: u64 = (MIN_DIM - 1 - arr_world_off_y_u) & sc_m;
+			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
 			var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
-			while (ly < MIN_DIM) : (ly += 1) {
+			for (0..min_dim) |_| {
 				const yf: i16 = cfg.cached_values[y_idx];
 				const sy: i16 = cfg.cached_smoothed_values[y_idx];
 				const ym1: i16 = yf - 0x7FFF;
@@ -188,21 +199,17 @@ pub fn perlin_generate_chunk2d(
 				const diff0_s = dy10 - dy00;
 				const diff1_s = dy11 - dy01;
 
-				const y_sy: Vec_i = @splat(sy);
-				const y_C1: Vec_i = vector_math.mul_q15_round(y_sy, @splat(dy01 - dy00)) + @as(Vec_i, @splat(dy00));
-				const y_C2: Vec_i = vector_math.mul_q15_round(y_sy, @splat(diff1_s - diff0_s)) + @as(Vec_i, @splat(diff0_s));
+				const y_sy: VecI = @splat(sy);
+				const y_c1: VecI = vector_math.mul_q15_round(y_sy, @splat(dy01 - dy00)) + @as(VecI, @splat(dy00));
+				const y_c2: VecI = vector_math.mul_q15_round(y_sy, @splat(diff1_s - diff0_s)) + @as(VecI, @splat(diff0_s));
 
-				const out_row_vec: [*]Vec_i = @as([*]Vec_i, @ptrCast(@alignCast(out_row_ptr)));
+				const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
 
 				for (0..vec_count) |vec_idx| {
-					const sx = x_sx[vec_idx];
-					const base_0 = x_base_0[vec_idx];
-					const base_diff = x_base_diff[vec_idx];
+					const term_bx = x_base_0[vec_idx] + vector_math.mul_q15_round(y_sy, x_base_diff[vec_idx]);
+					const term_sx = vector_math.mul_q15_round(x_sx[vec_idx], y_c2);
 
-					const term_bx = base_0 + vector_math.mul_q15_round(y_sy, base_diff);
-					const term_sx = vector_math.mul_q15_round(sx, y_C2);
-
-					out_row_vec[vec_idx] = y_C1 + term_bx + term_sx;
+					out_row_vec[vec_idx] = y_c1 + term_bx + term_sx;
 				}
 
 				y_idx = (y_idx -% 1) & sc_m;

@@ -10,13 +10,13 @@ pub fn run_warmup(
 	chunk_buffer: anytype,
 	warmup_chunk_count: u64,
 ) !void {
-	const scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
-	const gc_bytes = scratch.gc_bytes;
-	const gc_alignment = scratch.gc_alignment;
-	const workspace_bytes = scratch.workspace_bytes;
-	const workspace_alignment = scratch.workspace_alignment;
+	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
+	const gradient_cache_bytes = mode_scratch.gradient_cache_bytes;
+	const gradient_cache_alignment = mode_scratch.gradient_cache_alignment;
+	const workspace_bytes = mode_scratch.workspace_bytes;
+	const workspace_alignment = mode_scratch.workspace_alignment;
 
-	var gc_buffer: [gc_bytes]u8 align(gc_alignment) = undefined;
+	var gradient_cache_buffer: [gradient_cache_bytes]u8 align(gradient_cache_alignment) = undefined;
 	var workspace_buffer: [workspace_bytes]u8 align(workspace_alignment) = undefined;
 
 	for (0..warmup_chunk_count) |i| {
@@ -28,7 +28,7 @@ pub fn run_warmup(
 			@as(i64, @intCast(i)),
 			@as(i64, @intCast(i)),
 			chunk_buffer,
-			gc_buffer[0..gc_bytes],
+			gradient_cache_buffer[0..gradient_cache_bytes],
 			workspace_buffer[0..workspace_bytes],
 		);
 	}
@@ -40,19 +40,19 @@ pub fn run_benchmark_pass(
 	chunk_buffer: anytype,
 	benchmark_chunk_count: u64,
 ) !report.BenchmarkResult {
-	const start_cycles = cycle_counter.read();
 
-	const scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
-	const gc_bytes = scratch.gc_bytes;
-	const gc_alignment = scratch.gc_alignment;
-	const workspace_bytes = scratch.workspace_bytes;
-	const workspace_alignment = scratch.workspace_alignment;
+	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
+	const gradient_cache_bytes = mode_scratch.gradient_cache_bytes;
+	const gradient_cache_alignment = mode_scratch.gradient_cache_alignment;
+	const workspace_bytes = mode_scratch.workspace_bytes;
+	const workspace_alignment = mode_scratch.workspace_alignment;
 
-	var gc_buffer: [gc_bytes]u8 align(gc_alignment) = undefined;
+	var gradient_cache_buffer: [gradient_cache_bytes]u8 align(gradient_cache_alignment) = undefined;
 	var workspace_buffer: [workspace_bytes]u8 align(workspace_alignment) = undefined;
 
 	var best_chunk_cycles: u64 = std.math.maxInt(u64);
 
+	const start_cycles = cycle_counter.read();
 	for (0..benchmark_chunk_count) |i| {
 		const chunk_start_cycles = cycle_counter.read();
 
@@ -64,15 +64,11 @@ pub fn run_benchmark_pass(
 			@as(i64, @intCast(i)),
 			@as(i64, @intCast(i)),
 			chunk_buffer,
-			gc_buffer[0..gc_bytes],
+			gradient_cache_buffer[0..gradient_cache_bytes],
 			workspace_buffer[0..workspace_bytes],
 		);
 
-		const chunk_end_cycles = cycle_counter.read();
-
-		const chunk_cycles = chunk_end_cycles - chunk_start_cycles;
-
-		best_chunk_cycles = @min(chunk_cycles, best_chunk_cycles);
+		best_chunk_cycles = @min(cycle_counter.read() - chunk_start_cycles, best_chunk_cycles);
 	}
 
 	const end_cycles = cycle_counter.read();

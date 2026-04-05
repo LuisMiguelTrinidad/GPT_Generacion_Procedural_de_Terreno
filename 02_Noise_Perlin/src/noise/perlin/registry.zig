@@ -5,9 +5,9 @@ const perlin_O0 = @import("00_ref.zig");
 const perlin_O1 = @import("01_custom_hash.zig");
 const perlin_O2 = @import("02_caching.zig");
 const perlin_O3 = @import("03_tiling.zig");
-const perlin_O4 = @import("04_simd.zig");
-const perlin_O5 = @import("05_fpa.zig");
-const perlin_O6 = @import("06_licm.zig");
+const perlin_O4 = @import("04_licm.zig");
+const perlin_O5 = @import("05_simd.zig");
+const perlin_O6 = @import("06_fpa.zig");
 
 const mode_modules = .{
 	.O0 = perlin_O0,
@@ -29,8 +29,8 @@ pub const ModeSpec = struct {
 };
 
 pub const ScratchSpec = struct {
-	gc_bytes: usize,
-	gc_alignment: u29,
+	gradient_cache_bytes: usize,
+	gradient_cache_alignment: u29,
 	workspace_bytes: usize,
 	workspace_alignment: u29,
 };
@@ -55,20 +55,32 @@ pub fn get_mode_scratch_spec(
 ) ScratchSpec {
 	return switch (mode) {
 		.O2 => .{
-			.gc_bytes = perlin_O2.gc_bytes(chunk_size, scale),
-			.gc_alignment = @as(u29, @intCast(perlin_O2.GCAlignment)),
+			.gradient_cache_bytes = perlin_O2.gradient_cache_bytes(chunk_size, scale),
+			.gradient_cache_alignment = perlin_O2.GradientCacheAlignment,
 			.workspace_bytes = 0,
 			.workspace_alignment = 1,
 		},
+		.O4 => .{
+			.gradient_cache_bytes = 0,
+			.gradient_cache_alignment = 1,
+			.workspace_bytes = perlin_O4.workspace_bytes(chunk_size, scale),
+			.workspace_alignment = perlin_O4.RequiredAlignment,
+		},
+		.O5 => .{
+			.gradient_cache_bytes = 0,
+			.gradient_cache_alignment = 1,
+			.workspace_bytes = perlin_O5.workspace_bytes(chunk_size, scale),
+			.workspace_alignment = perlin_O5.RequiredAlignment,
+		},
 		.O6 => .{
-			.gc_bytes = 0,
-			.gc_alignment = 1,
+			.gradient_cache_bytes = 0,
+			.gradient_cache_alignment = 1,
 			.workspace_bytes = perlin_O6.workspace_bytes(chunk_size, scale),
-			.workspace_alignment = @as(u29, @intCast(perlin_O6.WorkspaceAlignment)),
+			.workspace_alignment = perlin_O6.RequiredAlignment,
 		},
 		else => .{
-			.gc_bytes = 0,
-			.gc_alignment = 1,
+			.gradient_cache_bytes = 0,
+			.gradient_cache_alignment = 1,
 			.workspace_bytes = 0,
 			.workspace_alignment = 1,
 		},
@@ -83,7 +95,7 @@ pub inline fn generate_chunk2d(
 	chunk_x: i64,
 	chunk_y: i64,
 	out_buffer: anytype,
-	gc_buf: []u8,
+	gradient_cache_buf: []u8,
 	workspace_buf: []u8,
 ) !void {
 	switch (mode) {
@@ -94,16 +106,32 @@ pub inline fn generate_chunk2d(
 			return perlin_O1.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
 		},
 		.O2 => {
-			return perlin_O2.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer, gc_buf);
+			return perlin_O2.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer, gradient_cache_buf);
 		},
 		.O3 => {
 			return perlin_O3.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
 		},
 		.O4 => {
-			return perlin_O4.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+			return perlin_O4.perlin_generate_chunk2d(
+				cfg,
+				chunk_x,
+				chunk_y,
+				out_buffer,
+				workspace_buf,
+				chunk_size,
+				scale,
+			);
 		},
 		.O5 => {
-			return perlin_O5.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+			return perlin_O5.perlin_generate_chunk2d(
+				cfg,
+				chunk_x,
+				chunk_y,
+				out_buffer,
+				workspace_buf,
+				chunk_size,
+				scale,
+			);
 		},
 		.O6 => {
 			return perlin_O6.perlin_generate_chunk2d(
