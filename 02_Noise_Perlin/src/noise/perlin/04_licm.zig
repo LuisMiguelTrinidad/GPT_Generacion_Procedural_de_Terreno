@@ -20,10 +20,15 @@ comptime {
 	}
 }
 
+inline fn lerp_scalar(a: f32, b: f32, t: f32) f32 {
+	const diff: f32 = b - a;
+	return @mulAdd(f32, t, diff, a);
+}
+
 inline fn fill_x_cache(
-	x_sx: [*]f32,
-	x_base_0: [*]f32,
-	x_base_diff: [*]f32,
+	sx_cache: [*]f32,
+	i_x0_cache: [*]f32,
+	delta_ix_cache: [*]f32,
 	elem_count: usize,
 	values_cache: [*]const f32,
 	smooth_cache: [*]const f32,
@@ -32,22 +37,25 @@ inline fn fill_x_cache(
 	g01x: f32,
 	g11x: f32,
 ) void {
+	@setFloatMode(.optimized);
+
 	for (0..elem_count) |idx| {
-		const x: f32 = values_cache[idx];
-		const sx: f32 = smooth_cache[idx];
-		const xm1: f32 = x - 1.0;
+		const x_rel: f32 = values_cache[idx];
+		const sx_lx: f32 = smooth_cache[idx];
+		const x_rel_m1: f32 = x_rel - 1.0;
 
-		const dx00: f32 = g00x * x;
-		const dx10: f32 = g10x * xm1;
-		const dx01: f32 = g01x * x;
-		const dx11: f32 = g11x * xm1;
+		const dx00: f32 = g00x * x_rel;
+		const dx10: f32 = g10x * x_rel_m1;
+		const dx01: f32 = g01x * x_rel;
+		const dx11: f32 = g11x * x_rel_m1;
 
-		const base_0: f32 = @mulAdd(f32, sx, dx10 - dx00, dx00);
-		const base_1: f32 = @mulAdd(f32, sx, dx11 - dx01, dx01);
+		const i_x0: f32 = lerp_scalar(dx00, dx10, sx_lx);
+		const i_x1: f32 = lerp_scalar(dx01, dx11, sx_lx);
+		const delta_ix: f32 = i_x1 - i_x0;
 
-		x_sx[idx] = sx;
-		x_base_0[idx] = base_0;
-		x_base_diff[idx] = base_1 - base_0;
+		sx_cache[idx] = sx_lx;
+		i_x0_cache[idx] = i_x0;
+		delta_ix_cache[idx] = delta_ix;
 	}
 }
 
@@ -87,13 +95,14 @@ pub inline fn perlin_init_config(
 
 pub fn perlin_generate_chunk2d(
 	cfg: types.PerlinConfig,
-	chunk_x: i64,
-	chunk_y: i64,
+	world_x: i64,
+	world_y: i64,
 	noalias out_buffer: []f32,
-	noalias workspace_buf: []u8,
 	comptime chunk_size: u64,
 	comptime scale: u64,
 ) !void {
+	@setFloatMode(.optimized);
+
 	const cs_u: u64 = chunk_size;
 	const cs_l: u6 = @as(u6, @intCast(@ctz(cs_u)));
 
@@ -101,8 +110,8 @@ pub fn perlin_generate_chunk2d(
 	const sc_m: u64 = sc_u - 1;
 	const sc_l: u6 = @as(u6, @intCast(@ctz(sc_u)));
 
-	const arr_world_base_x_i: i64 = chunk_x << cs_l;
-	const arr_world_base_y_i: i64 = chunk_y << cs_l;
+	const arr_world_base_x_i: i64 = world_x;
+	const arr_world_base_y_i: i64 = world_y;
 	const noise_grid_base_x_i: i64 = arr_world_base_x_i >> sc_l;
 	const noise_grid_base_y_i: i64 = arr_world_base_y_i >> sc_l;
 
@@ -112,15 +121,15 @@ pub fn perlin_generate_chunk2d(
 	const arr_world_off_x_u: u64 = @as(u64, @bitCast(arr_world_base_x_i)) & sc_m;
 	const arr_world_off_y_u: u64 = @as(u64, @bitCast(arr_world_base_y_i)) & sc_m;
 
-	const min_dim_u: u64 = @min(chunk_size, scale);
-	const min_dim: usize = @as(usize, @intCast(min_dim_u));
+	const min_dim: u64 = comptime @min(chunk_size, scale);
+	const elem_count: usize = comptime @as(usize, @intCast(min_dim));
 
 	const values_cache: [*]const f32 = cfg.cached_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
 	const smooth_cache: [*]const f32 = cfg.cached_smoothed_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
 
-	const x_sx: [*]f32 = @ptrCast(@alignCast(workspace_buf.ptr));
-	const x_base_0: [*]f32 = x_sx + min_dim;
-	const x_base_diff: [*]f32 = x_base_0 + min_dim;
+	var sx_cache_arr: [elem_count]f32 = undefined;
+	var i_x0_cache_arr: [elem_count]f32 = undefined;
+	var delta_ix_cache_arr: [elem_count]f32 = undefined;
 
 	for (0..(gps - 1)) |gy| {
 		const noise_local_tile_y_u: u64 = (gps - 1) - gy - 1;
@@ -147,14 +156,12 @@ pub fn perlin_generate_chunk2d(
 			const g10y_s: f32 = table.grad_table[1][g10_idx];
 			const g01y_s: f32 = table.grad_table[1][g01_idx];
 			const g11y_s: f32 = table.grad_table[1][g11_idx];
-			const g10y_minus_g00y: f32 = g10y_s - g00y_s;
-			const g11y_minus_g01y: f32 = g11y_s - g01y_s;
 
 			fill_x_cache(
-				x_sx,
-				x_base_0,
-				x_base_diff,
-				min_dim,
+				&sx_cache_arr,
+				&i_x0_cache_arr,
+				&delta_ix_cache_arr,
+				elem_count,
 				values_cache,
 				smooth_cache,
 				g00x,
@@ -163,25 +170,25 @@ pub fn perlin_generate_chunk2d(
 				g11x,
 			);
 
-			var y_idx: u64 = (min_dim_u - 1 - arr_world_off_y_u) & sc_m;
+			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
 			var out_row_ptr: [*]f32 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
-			for (0..min_dim_u) |_| {
-				const yf: f32 = cfg.cached_values[y_idx];
-				const sy: f32 = cfg.cached_smoothed_values[y_idx];
-				const ym1: f32 = yf - 1.0;
+			for (0..min_dim) |_| {
+				const y_rel: f32 = cfg.cached_values[y_idx];
+				const sy_ly: f32 = cfg.cached_smoothed_values[y_idx];
+				const y_rel_m1: f32 = y_rel - 1.0;
 
-				const dy00: f32 = g00y_s * yf;
-				const dy01: f32 = g01y_s * ym1;
-				const diff0_s: f32 = g10y_minus_g00y * yf;
-				const diff1_s: f32 = g11y_minus_g01y * ym1;
+				const dy00: f32 = g00y_s * y_rel;
+				const dy10: f32 = g10y_s * y_rel;
+				const dy01: f32 = g01y_s * y_rel_m1;
+				const dy11: f32 = g11y_s * y_rel_m1;
 
-				const y_c1: f32 = @mulAdd(f32, sy, dy01 - dy00, dy00);
-				const y_c2: f32 = @mulAdd(f32, sy, diff1_s - diff0_s, diff0_s);
+				const i_y0: f32 = @mulAdd(f32, sy_ly, dy01 - dy00, dy00);
+				const delta_iy: f32 = @mulAdd(f32, sy_ly, (dy11 - dy01) - (dy10 - dy00), dy10 - dy00);
 
-				for (0..min_dim) |idx| {
-					const term_bx: f32 = @mulAdd(f32, sy, x_base_diff[idx], x_base_0[idx]);
-					out_row_ptr[idx] = @mulAdd(f32, x_sx[idx], y_c2, y_c1 + term_bx);
+				for (0..elem_count) |idx| {
+					const term_x: f32 = @mulAdd(f32, sy_ly, delta_ix_cache_arr[idx], i_x0_cache_arr[idx]);
+					out_row_ptr[idx] = @mulAdd(f32, sx_cache_arr[idx], delta_iy, i_y0 + term_x);
 				}
 
 				y_idx = (y_idx -% 1) & sc_m;

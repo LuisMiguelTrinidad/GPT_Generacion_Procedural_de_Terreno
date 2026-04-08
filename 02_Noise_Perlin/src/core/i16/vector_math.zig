@@ -32,6 +32,6 @@ pub inline fn mul_q15_round(a: anytype, b: @TypeOf(a)) @TypeOf(a) {
     
 	const Vec32 = @Vector(info.len, i32);
 	const prod: Vec32 = @as(Vec32, a) * @as(Vec32, b);
-	const rounded: Vec32 = (prod + @as(Vec32, @splat(@as(i32, 0x4000)))) >> @as(@Vector(info.len, u5), @splat(15));
+	const rounded: Vec32 = (prod + @as(Vec32, @splat(@as(i32, 0x4000)))) >>  @splat(15);
 	return @as(Vec, @truncate(rounded));
 }

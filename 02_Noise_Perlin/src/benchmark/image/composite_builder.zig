@@ -15,7 +15,6 @@ pub fn build_composite_gray8(
 	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
 
 	var gradient_cache_buffer: [mode_scratch.gradient_cache_bytes]u8 align(mode_scratch.gradient_cache_alignment) = undefined;
-	var workspace_buffer: [mode_scratch.workspace_bytes]u8 align(mode_scratch.workspace_alignment) = undefined;
 
 	const cs_usize: usize = @intCast(perlin_cfg.chunk_size);
 	const chunks_per_side_usize: usize = @intCast(save_chunks_per_side);
@@ -26,6 +25,7 @@ pub fn build_composite_gray8(
 	errdefer allocator.free(image_bytes);
 
 	const save_chunks_i64: i64 = @intCast(save_chunks_per_side);
+	const chunk_size_i64: i64 = @as(i64, @intCast(config.CHUNK_SIZE));
 	const half: i64 = @divTrunc(save_chunks_i64, 2);
 
 	const min_idx: i64 = -half;
@@ -39,17 +39,18 @@ pub fn build_composite_gray8(
 			const x_idx: i64 = min_idx + @as(i64, @intCast(grid_x));
 
 			const eval_y = save_chunks_i64 - 1 - y_idx;
+			const world_x: i64 = x_idx * chunk_size_i64;
+			const world_y: i64 = eval_y * chunk_size_i64;
 
 			try registry.generate_chunk2d(
 				mode,
 				config.CHUNK_SIZE,
 				config.SCALE,
 				perlin_cfg,
-				x_idx,
-				eval_y,
+				world_x,
+				world_y,
 				chunk_buffer,
 				gradient_cache_buffer[0..mode_scratch.gradient_cache_bytes],
-				workspace_buffer[0..mode_scratch.workspace_bytes],
 			);
 
 			for (0..cs_usize) |row| {

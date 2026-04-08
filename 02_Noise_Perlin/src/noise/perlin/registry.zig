@@ -30,9 +30,7 @@ pub const ModeSpec = struct {
 
 pub const ScratchSpec = struct {
 	gradient_cache_bytes: usize,
-	gradient_cache_alignment: u29,
-	workspace_bytes: usize,
-	workspace_alignment: u29,
+	gradient_cache_alignment: u29
 };
 
 fn mode_module(comptime mode: OptMode) type {
@@ -57,32 +55,22 @@ pub fn get_mode_scratch_spec(
 		.O2 => .{
 			.gradient_cache_bytes = perlin_O2.gradient_cache_bytes(chunk_size, scale),
 			.gradient_cache_alignment = perlin_O2.GradientCacheAlignment,
-			.workspace_bytes = 0,
-			.workspace_alignment = 1,
 		},
 		.O4 => .{
 			.gradient_cache_bytes = 0,
 			.gradient_cache_alignment = 1,
-			.workspace_bytes = perlin_O4.workspace_bytes(chunk_size, scale),
-			.workspace_alignment = perlin_O4.RequiredAlignment,
 		},
 		.O5 => .{
 			.gradient_cache_bytes = 0,
 			.gradient_cache_alignment = 1,
-			.workspace_bytes = perlin_O5.workspace_bytes(chunk_size, scale),
-			.workspace_alignment = perlin_O5.RequiredAlignment,
 		},
 		.O6 => .{
 			.gradient_cache_bytes = 0,
 			.gradient_cache_alignment = 1,
-			.workspace_bytes = perlin_O6.workspace_bytes(chunk_size, scale),
-			.workspace_alignment = perlin_O6.RequiredAlignment,
 		},
 		else => .{
 			.gradient_cache_bytes = 0,
-			.gradient_cache_alignment = 1,
-			.workspace_bytes = 0,
-			.workspace_alignment = 1,
+			.gradient_cache_alignment = 1
 		},
 	};
 }
@@ -92,32 +80,30 @@ pub inline fn generate_chunk2d(
 	comptime chunk_size: u64,
 	comptime scale: u64,
 	cfg: anytype,
-	chunk_x: i64,
-	chunk_y: i64,
+	world_x: i64,
+	world_y: i64,
 	out_buffer: anytype,
 	gradient_cache_buf: []u8,
-	workspace_buf: []u8,
 ) !void {
 	switch (mode) {
 		.O0 => {
-			return perlin_O0.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+			return perlin_O0.perlin_generate_chunk2d(cfg, world_x, world_y, out_buffer);
 		},
 		.O1 => {
-			return perlin_O1.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+			return perlin_O1.perlin_generate_chunk2d(cfg, world_x, world_y, out_buffer);
 		},
 		.O2 => {
-			return perlin_O2.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer, gradient_cache_buf);
+			return perlin_O2.perlin_generate_chunk2d(cfg, world_x, world_y, out_buffer, gradient_cache_buf);
 		},
 		.O3 => {
-			return perlin_O3.perlin_generate_chunk2d(cfg, chunk_x, chunk_y, out_buffer);
+			return perlin_O3.perlin_generate_chunk2d(cfg, world_x, world_y, out_buffer);
 		},
 		.O4 => {
 			return perlin_O4.perlin_generate_chunk2d(
 				cfg,
-				chunk_x,
-				chunk_y,
+				world_x,
+				world_y,
 				out_buffer,
-				workspace_buf,
 				chunk_size,
 				scale,
 			);
@@ -125,10 +111,9 @@ pub inline fn generate_chunk2d(
 		.O5 => {
 			return perlin_O5.perlin_generate_chunk2d(
 				cfg,
-				chunk_x,
-				chunk_y,
+				world_x,
+				world_y,
 				out_buffer,
-				workspace_buf,
 				chunk_size,
 				scale,
 			);
@@ -136,10 +121,9 @@ pub inline fn generate_chunk2d(
 		.O6 => {
 			return perlin_O6.perlin_generate_chunk2d(
 				cfg,
-				chunk_x,
-				chunk_y,
+				world_x,
+				world_y,
 				out_buffer,
-				workspace_buf,
 				chunk_size,
 				scale,
 			);

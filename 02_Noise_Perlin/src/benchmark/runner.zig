@@ -13,23 +13,23 @@ pub fn run_warmup(
 	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
 	const gradient_cache_bytes = mode_scratch.gradient_cache_bytes;
 	const gradient_cache_alignment = mode_scratch.gradient_cache_alignment;
-	const workspace_bytes = mode_scratch.workspace_bytes;
-	const workspace_alignment = mode_scratch.workspace_alignment;
+
+	const chunk_size_i64: i64 = @as(i64, @intCast(config.CHUNK_SIZE));
 
 	var gradient_cache_buffer: [gradient_cache_bytes]u8 align(gradient_cache_alignment) = undefined;
-	var workspace_buffer: [workspace_bytes]u8 align(workspace_alignment) = undefined;
 
 	for (0..warmup_chunk_count) |i| {
+		const chunk_idx_i64: i64 = @as(i64, @intCast(i));
+		const world_origin: i64 = chunk_idx_i64 * chunk_size_i64;
 		try registry.generate_chunk2d(
 			mode,
 			config.CHUNK_SIZE,
 			config.SCALE,
 			perlin_cfg,
-			@as(i64, @intCast(i)),
-			@as(i64, @intCast(i)),
+			world_origin,
+			world_origin,
 			chunk_buffer,
 			gradient_cache_buffer[0..gradient_cache_bytes],
-			workspace_buffer[0..workspace_bytes],
 		);
 	}
 }
@@ -44,28 +44,28 @@ pub fn run_benchmark_pass(
 	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
 	const gradient_cache_bytes = mode_scratch.gradient_cache_bytes;
 	const gradient_cache_alignment = mode_scratch.gradient_cache_alignment;
-	const workspace_bytes = mode_scratch.workspace_bytes;
-	const workspace_alignment = mode_scratch.workspace_alignment;
+
+	const chunk_size_i64: i64 = @as(i64, @intCast(config.CHUNK_SIZE));
 
 	var gradient_cache_buffer: [gradient_cache_bytes]u8 align(gradient_cache_alignment) = undefined;
-	var workspace_buffer: [workspace_bytes]u8 align(workspace_alignment) = undefined;
 
 	var best_chunk_cycles: u64 = std.math.maxInt(u64);
 
 	const start_cycles = cycle_counter.read();
 	for (0..benchmark_chunk_count) |i| {
 		const chunk_start_cycles = cycle_counter.read();
+		const chunk_idx_i64: i64 = @as(i64, @intCast(i));
+		const world_origin: i64 = chunk_idx_i64 * chunk_size_i64;
 
 		try registry.generate_chunk2d(
 			mode,
 			config.CHUNK_SIZE,
 			config.SCALE,
 			perlin_cfg,
-			@as(i64, @intCast(i)),
-			@as(i64, @intCast(i)),
+			world_origin,
+			world_origin,
 			chunk_buffer,
 			gradient_cache_buffer[0..gradient_cache_bytes],
-			workspace_buffer[0..workspace_bytes],
 		);
 
 		best_chunk_cycles = @min(cycle_counter.read() - chunk_start_cycles, best_chunk_cycles);

@@ -22,16 +22,29 @@ pub fn workspace_bytes(comptime chunk_size: u64, comptime scale: u64) usize {
 }
 
 comptime {
+	if (@popCount(@as(u64, LANES)) != 1) {
+		@compileError("O5 requires LANES to be a power of two");
+	}
 	if (@popCount(@as(u64, RequiredAlignment)) != 1) {
 		@compileError("RequiredAlignment must be a non-zero power of two");
 	}
 }
 
+inline fn lerp_vec(a: VecF, b: VecF, t: VecF) VecF {
+	const diff: VecF = b - a;
+	return (t * diff) + a;
+}
+
+inline fn lerp_scalar(a: f32, b: f32, t: f32) f32 {
+	const diff: f32 = b - a;
+	return (diff * t) + a;
+}
+
 inline fn fill_x_cache(
-	x_sx: [*]VecF,
-	x_base_0: [*]VecF,
-	x_base_diff: [*]VecF,
-	vec_count: usize,
+	sx_cache: [*]VecF,
+	i_x0_cache: [*]VecF,
+	delta_ix_cache: [*]VecF,
+	comptime vec_count: usize,
 	values_cache_vec: [*]const VecF,
 	smooth_cache_vec: [*]const VecF,
 	g00x: VecF,
@@ -41,7 +54,7 @@ inline fn fill_x_cache(
 ) void {
 	const one: VecF = @splat(1.0);
 
-	for (0..vec_count) |vec_idx| {
+	inline for (0..vec_count) |vec_idx| {
 		const x_vec: VecF = values_cache_vec[vec_idx];
 		const sx_vec: VecF = smooth_cache_vec[vec_idx];
 		const x_m1: VecF = x_vec - one;
@@ -51,12 +64,12 @@ inline fn fill_x_cache(
 		const dx01: VecF = g01x * x_vec;
 		const dx11: VecF = g11x * x_m1;
 
-		const base_0: VecF = @mulAdd(VecF, sx_vec, dx10 - dx00, dx00);
-		const base_1: VecF = @mulAdd(VecF, sx_vec, dx11 - dx01, dx01);
+		const i_x0: VecF = lerp_vec(dx00, dx10, sx_vec);
+		const delta_ix: VecF = lerp_vec(dx01 - dx00, dx11 - dx10, sx_vec);
 
-		x_sx[vec_idx] = sx_vec;
-		x_base_0[vec_idx] = base_0;
-		x_base_diff[vec_idx] = base_1 - base_0;
+		sx_cache[vec_idx] = sx_vec;
+		i_x0_cache[vec_idx] = i_x0;
+		delta_ix_cache[vec_idx] = delta_ix;
 	}
 }
 
@@ -99,13 +112,17 @@ pub inline fn perlin_init_config(
 
 pub fn perlin_generate_chunk2d(
 	cfg: types.PerlinConfig,
-	chunk_x: i64,
-	chunk_y: i64,
+	world_x: i64,
+	world_y: i64,
 	noalias out_buffer: []f32,
-	noalias workspace_buf: []u8,
 	comptime chunk_size: u64,
 	comptime scale: u64,
 ) !void {
+	const lane_mask_u: u64 = @as(u64, LANES) - 1;
+	if (((@as(u64, @bitCast(world_x)) & lane_mask_u) != 0) or ((@as(u64, @bitCast(world_y)) & lane_mask_u) != 0)) {
+		return error.WorldCoordinatesNotVectorAligned;
+	}
+
 	const cs_u: u64 = chunk_size;
 	const cs_l: u6 = @as(u6, @intCast(@ctz(cs_u)));
 
@@ -113,8 +130,8 @@ pub fn perlin_generate_chunk2d(
 	const sc_m: u64 = sc_u - 1;
 	const sc_l: u6 = @as(u6, @intCast(@ctz(sc_u)));
 
-	const arr_world_base_x_i: i64 = chunk_x << cs_l;
-	const arr_world_base_y_i: i64 = chunk_y << cs_l;
+	const arr_world_base_x_i: i64 = world_x;
+	const arr_world_base_y_i: i64 = world_y;
 	const noise_grid_base_x_i: i64 = arr_world_base_x_i >> sc_l;
 	const noise_grid_base_y_i: i64 = arr_world_base_y_i >> sc_l;
 
@@ -124,17 +141,17 @@ pub fn perlin_generate_chunk2d(
 	const arr_world_off_x_u: u64 = @as(u64, @bitCast(arr_world_base_x_i)) & sc_m;
 	const arr_world_off_y_u: u64 = @as(u64, @bitCast(arr_world_base_y_i)) & sc_m;
 
-	const min_dim: u64 = @min(chunk_size, scale);
+	const min_dim: u64 = comptime @min(chunk_size, scale);
+	const vec_count: usize = comptime @as(usize, @intCast(@divExact(min_dim, LANES)));
 
 	const values_base: [*]const f32 = cfg.cached_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
 	const smooth_base: [*]const f32 = cfg.cached_smoothed_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
 	const values_cache_vec: [*]const VecF = @as([*]const VecF, @ptrCast(@alignCast(values_base)));
 	const smooth_cache_vec: [*]const VecF = @as([*]const VecF, @ptrCast(@alignCast(smooth_base)));
 
-	const vec_count: usize = @as(usize, @intCast(@divExact(min_dim, LANES)));
-	const x_sx: [*]VecF = @ptrCast(@alignCast(workspace_buf.ptr));
-	const x_base_0: [*]VecF = x_sx + vec_count;
-	const x_base_diff: [*]VecF = x_base_0 + vec_count;
+	var sx_cache_arr: [vec_count]VecF = undefined;
+	var i_x0_cache_arr: [vec_count]VecF = undefined;
+	var delta_ix_cache_arr: [vec_count]VecF = undefined;
 
 	for (0..(gps - 1)) |gy| {
 		const noise_local_tile_y_u: u64 = (gps - 1) - gy - 1;
@@ -161,13 +178,11 @@ pub fn perlin_generate_chunk2d(
 			const g10y_s: f32 = table.grad_table[1][g10_idx];
 			const g01y_s: f32 = table.grad_table[1][g01_idx];
 			const g11y_s: f32 = table.grad_table[1][g11_idx];
-			const g10y_minus_g00y: f32 = g10y_s - g00y_s;
-			const g11y_minus_g01y: f32 = g11y_s - g01y_s;
 
 			fill_x_cache(
-				x_sx,
-				x_base_0,
-				x_base_diff,
+				&sx_cache_arr,
+				&i_x0_cache_arr,
+				&delta_ix_cache_arr,
 				vec_count,
 				values_cache_vec,
 				smooth_cache_vec,
@@ -181,24 +196,25 @@ pub fn perlin_generate_chunk2d(
 			var out_row_ptr: [*]f32 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
 			for (0..min_dim) |_| {
-				const yf: f32 = cfg.cached_values[y_idx];
-				const sy: f32 = cfg.cached_smoothed_values[y_idx];
-				const ym1: f32 = yf - 1.0;
+				const y_rel: f32 = cfg.cached_values[y_idx];
+				const sy_ly: f32 = cfg.cached_smoothed_values[y_idx];
+				const y_rel_m1: f32 = y_rel - 1.0;
 
-				const dy00: f32 = g00y_s * yf;
-				const dy01: f32 = g01y_s * ym1;
-				const diff0_s: f32 = g10y_minus_g00y * yf;
-				const diff1_s: f32 = g11y_minus_g01y * ym1;
+				const dy00: f32 = g00y_s * y_rel;
+				const dy10: f32 = g10y_s * y_rel;
+				const dy01: f32 = g01y_s * y_rel_m1;
+				const dy11: f32 = g11y_s * y_rel_m1;
 
-				const y_sy: VecF = @splat(sy);
-				const y_c1: VecF = @splat(@mulAdd(f32, sy, dy01 - dy00, dy00));
-				const y_c2: VecF = @splat(@mulAdd(f32, sy, diff1_s - diff0_s, diff0_s));
+				const y_sy: VecF = @splat(sy_ly);
+				const i_y0: VecF = @splat(lerp_scalar(dy00, dy01, sy_ly));
+				const delta_iy: VecF = @splat(lerp_scalar(dy10 - dy00, dy11 - dy01, sy_ly));
 
 				const out_row_vec: [*]VecF = @as([*]VecF, @ptrCast(@alignCast(out_row_ptr)));
 
-				for (0..vec_count) |vec_idx| {
-					const term_bx: VecF = @mulAdd(VecF, y_sy, x_base_diff[vec_idx], x_base_0[vec_idx]);
-					out_row_vec[vec_idx] = @mulAdd(VecF, x_sx[vec_idx], y_c2, y_c1 + term_bx);
+				inline for (0..vec_count) |vec_idx| {
+					const term_x: VecF = i_x0_cache_arr[vec_idx] + (y_sy * delta_ix_cache_arr[vec_idx]);
+					const term_y: VecF = i_y0 + (sx_cache_arr[vec_idx] * delta_iy);
+					out_row_vec[vec_idx] = term_y + term_x;
 				}
 
 				y_idx = (y_idx -% 1) & sc_m;

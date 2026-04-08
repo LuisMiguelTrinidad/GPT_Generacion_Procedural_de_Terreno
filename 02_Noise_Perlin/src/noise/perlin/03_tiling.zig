@@ -46,18 +46,17 @@ pub fn perlin_init_config(
 
 pub fn perlin_generate_chunk2d(
   cfg: types.PerlinConfig, 
-  chunk_x: i64, 
-  chunk_y: i64, 
+  world_x: i64,
+  world_y: i64,
   out_buffer: []f32,
 ) !void {
   const cs_u: u64 = @intCast(cfg.chunk_size);
-  const cs_i: i64 = @as(i64, @intCast(cfg.chunk_size));
   const sc_u: u64 = @intCast(cfg.scale);
   const sc_m: u64 = sc_u - 1;
   const sc_l: u6  = @as(u6, @intCast(@ctz(sc_u))); 
   
-  const arr_world_base_x_i: i64 = chunk_x * cs_i;
-  const arr_world_base_y_i: i64 = chunk_y * cs_i;
+  const arr_world_base_x_i: i64 = world_x;
+  const arr_world_base_y_i: i64 = world_y;
 
   const noise_grid_base_x_i: i64 = arr_world_base_x_i >> sc_l;
   const noise_grid_base_y_i: i64 = arr_world_base_y_i >> sc_l;
