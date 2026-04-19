@@ -26,25 +26,21 @@ pub fn run_mode_i16(
 	const smoothed_values_buffer = try allocator.alignedAlloc(i16, alloc_alignment, config.SCALE);
 	defer allocator.free(smoothed_values_buffer);
 
-	const perlin_cfg = mod.perlin_init_config(
+	mod.perlin_prepare_cached_values(
 		values_buffer,
 		smoothed_values_buffer,
-		config.SEED,
 		config.CHUNK_SIZE,
 		config.SCALE,
-		config.OCTAVES,
-		config.PERSISTENCE,
-		config.LACUNARITY,
 	);
 
-	const cs_usize: usize = @intCast(perlin_cfg.chunk_size);
+	const cs_usize: usize = @intCast(config.CHUNK_SIZE);
 	const chunk_buffer = try allocator.alignedAlloc(i16, alloc_alignment, cs_usize * cs_usize);
 	defer allocator.free(chunk_buffer);
 
-	try runner.run_warmup(mode, perlin_cfg, chunk_buffer, warmup_chunk_count);
-	const benchmark_result = try runner.run_benchmark_pass(mode, perlin_cfg, chunk_buffer, benchmark_chunk_count);
+	try runner.run_warmup(mode, config.SEED, values_buffer, smoothed_values_buffer, chunk_buffer, warmup_chunk_count);
+	const benchmark_result = try runner.run_benchmark_pass(mode, config.SEED, values_buffer, smoothed_values_buffer, chunk_buffer, benchmark_chunk_count);
 
-	const total_points = benchmark_chunk_count * perlin_cfg.chunk_size * perlin_cfg.chunk_size;
+	const total_points = benchmark_chunk_count * config.CHUNK_SIZE * config.CHUNK_SIZE;
 	try report.print_benchmark_report(
 		stdout,
 		benchmark_chunk_count,
@@ -57,7 +53,9 @@ pub fn run_mode_i16(
 		stdout,
 		stderr,
 		mode,
-		perlin_cfg,
+		config.SEED,
+		values_buffer,
+		smoothed_values_buffer,
 		chunk_buffer,
 		mode_str,
 		save_chunks_per_side,

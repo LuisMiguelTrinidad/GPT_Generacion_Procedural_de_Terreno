@@ -1,5 +1,4 @@
 const table = @import("../../core/i16/table.zig");
-const types = @import("../../core/i16/types.zig");
 const vector_math = @import("../../core/i16/vector_math.zig");
 
 const hash = @import("../../core/shared/hash.zig");
@@ -42,6 +41,10 @@ inline fn lerp_vec_q15(a: VecI, b: VecI, t: VecI) VecI {
 	return vector_math.mul_q15_round(t, diff) + a;
 }
 
+pub inline fn perlin_prepare_seed(seed: u64) u64 {
+	return hash.custom_hash_init_v1(seed);
+}
+
 // Asumiendo que mul_q15_round suma 0x4000 para redondear a la fracción más cercana.
 // Ajusta el '+ 0x4000' si tu vector_math usa una lógica de truncamiento distinta.
 inline fn lerp_scalar_q15(a: i16, b: i16, t: i16) i16 {
@@ -51,49 +54,12 @@ inline fn lerp_scalar_q15(a: i16, b: i16, t: i16) i16 {
     return a + mul_round;
 }
 
-inline fn fill_x_cache(
-  sx_cache: [*]VecI,
-  i_x0_cache: [*]VecI,
-  delta_ix_cache: [*]VecI,
-  comptime vec_count: usize,
-  values_cache_vec: [*]const VecI,
-  smooth_cache_vec: [*]const VecI,
-  g00x: VecI,
-  g10x: VecI,
-  g01x: VecI,
-  g11x: VecI,
-) void {
-  inline for (0..vec_count) |vec_idx| {
-    const x_vec: VecI = values_cache_vec[vec_idx];
-    const sx_vec: VecI = smooth_cache_vec[vec_idx];
-    const x_m1: VecI = x_vec - @as(VecI, @splat(0x7FFF));
-
-    const dx00 = vector_math.mul_q15_round(g00x, x_vec);
-    const dx10 = vector_math.mul_q15_round(g10x, x_m1);
-    const dx01 = vector_math.mul_q15_round(g01x, x_vec);
-    const dx11 = vector_math.mul_q15_round(g11x, x_m1);
-
-    // Aplicamos la misma propiedad matemática a los vectores:
-    // lerp(dx01, dx11, sx) - lerp(dx00, dx10, sx) == lerp(dx01 - dx00, dx11 - dx10, sx)
-    const i_x0 = lerp_vec_q15(dx00, dx10, sx_vec);
-    const delta_ix = lerp_vec_q15(dx01 - dx00, dx11 - dx10, sx_vec);
-
-    sx_cache[vec_idx] = sx_vec;
-    i_x0_cache[vec_idx] = i_x0;
-    delta_ix_cache[vec_idx] = delta_ix; // Guardamos directamente el resultado
-  }
-}
-
-pub inline fn perlin_init_config(
+pub inline fn perlin_prepare_cached_values(
 	values_buf: []i16,
 	smoothed_buf: []i16,
-	seed: u64,
 	comptime chunk_size: u64,
 	comptime scale: u64,
-	comptime octaves: u64,
-	comptime persistence: f32,
-	comptime lacunarity: f32,
-) types.PerlinConfig {
+) void {
 	comptime {
 		if ((@popCount(scale) != 1)) {
 			@compileError("O6 requires SCALE to be a power of two");
@@ -111,31 +77,29 @@ pub inline fn perlin_init_config(
 			)
 		));
 	}
-
-	return types.PerlinConfig{
-		.seed = hash.custom_hash_init_v1(seed),
-		.chunk_size = chunk_size,
-		.scale = scale,
-		.octaves = octaves,
-		.persistence = persistence,
-		.lacunarity = lacunarity,
-		.cached_values = values_buf,
-		.cached_smoothed_values = smoothed_buf,
-	};
 }
 
 pub fn perlin_generate_chunk2d(
-	cfg: types.PerlinConfig,
+	seed: u64,
+	comptime chunk_size: u64,
+	comptime scale: u64,
+	noalias cached_values: []const i16,
+	noalias cached_smoothed_values: []const i16,
 	world_x: i64,
 	world_y: i64,
 	noalias out_buffer: []i16,
-	comptime chunk_size: u64,
-	comptime scale: u64,
 ) !void {
-	const lane_mask_u: u64 = @as(u64, LANES) - 1;
-	if (((@as(u64, @bitCast(world_x)) & lane_mask_u) != 0) or ((@as(u64, @bitCast(world_y)) & lane_mask_u) != 0)) {
-		return error.WorldCoordinatesNotVectorAligned;
+	// Verificar alineación de coordenadas mundiales para SIMD
+	const lane_mask: u64 = LANES - 1; 
+	const wx_u: u64 = @bitCast(world_x);
+	const wy_u: u64 = @bitCast(world_y);
+
+	if (((wx_u | wy_u) & lane_mask) != 0) {
+			return error.WorldCoordinatesNotVectorAligned;
 	}
+
+	const initialized_seed: u64 = hash.custom_hash_init_v1(seed);
+
 	const cs_u: u64 = chunk_size;
 	const cs_l: u6 = @as(u6, @intCast(@ctz(cs_u)));
 
@@ -143,100 +107,101 @@ pub fn perlin_generate_chunk2d(
 	const sc_m: u64 = sc_u - 1;
 	const sc_l: u6 = @as(u6, @intCast(@ctz(sc_u)));
 
-	const arr_world_base_x_i: i64 = world_x;
-	const arr_world_base_y_i: i64 = world_y;
-	const noise_grid_base_x_i: i64 = arr_world_base_x_i >> sc_l;
-	const noise_grid_base_y_i: i64 = arr_world_base_y_i >> sc_l;
+	const grid_base_x: i64 = world_x >> sc_l;
+	const grid_base_y: i64 = world_y >> sc_l;
 
-	const grids_per_side: u64 = @max(cs_u >> sc_l, @as(u64, 1));
-	const gps: usize = @as(usize, @intCast(grids_per_side + 1));
+	const n_cells: u64 = @max(cs_u >> sc_l, @as(u64, 1));
 
-	const arr_world_off_x_u: u64 = @as(u64, @bitCast(arr_world_base_x_i)) & sc_m;
-	const arr_world_off_y_u: u64 = @as(u64, @bitCast(arr_world_base_y_i)) & sc_m;
+	const arr_world_off_x_u: u64 = @as(u64, @bitCast(world_x)) & sc_m;
+	const arr_world_off_y_u: u64 = @as(u64, @bitCast(world_y)) & sc_m;
 
 	const min_dim: u64 = comptime @min(chunk_size, scale);
-  const vec_count: usize = comptime @as(usize, @intCast(@divExact(min_dim, LANES)));
+	const vec_count: usize = comptime @as(usize, @intCast(@divExact(min_dim, LANES)));
 
-	const values_base: [*]const i16 = cfg.cached_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
-	const smooth_base: [*]const i16 = cfg.cached_smoothed_values.ptr + @as(u64, @intCast(arr_world_off_x_u));
-	const values_cache_vec: [*]const VecI = @as([*]const VecI, @ptrCast(@alignCast(values_base)));
-	const smooth_cache_vec: [*]const VecI = @as([*]const VecI, @ptrCast(@alignCast(smooth_base)));
+	const x_rel_base = cached_values.ptr + arr_world_off_x_u;
+	const s_x_base = cached_smoothed_values.ptr + arr_world_off_x_u;
 
-	var sx_cache_arr: [vec_count]VecI = undefined;
+	const x_rel_cache_vec: [*]const VecI = @ptrCast(@alignCast(x_rel_base));
+	const s_x_cache_vec: [*]const VecI = @ptrCast(@alignCast(s_x_base));
+
+	var s_x_cache_arr: [vec_count]VecI = undefined;
 	var i_x0_cache_arr: [vec_count]VecI = undefined;
-	var delta_ix_cache_arr: [vec_count]VecI = undefined;
+	var delta_i_x_cache_arr: [vec_count]VecI = undefined;
 
-	for (0..(gps - 1)) |gy| {
-		const noise_local_tile_y_u: u64 = (gps - 1) - gy - 1;
+	for (0..n_cells) |gy| {
+		const noise_local_tile_y_u: u64 = n_cells - gy - 1;
 		const arr_world_tile_y_u: u64 = noise_local_tile_y_u << sc_l;
 
-		for (0..(gps - 1)) |gx| {
+		for (0..n_cells) |gx| {
 			const arr_world_tile_x_u: u64 = gx << sc_l;
-			const noise_grid_x0_i: i64 = noise_grid_base_x_i + @as(i64, @intCast(gx));
-			const noise_grid_y0_i: i64 = noise_grid_base_y_i + @as(i64, @intCast(gy));
-			const noise_grid_x1_i: i64 = noise_grid_x0_i + 1;
-			const noise_grid_y1_i: i64 = noise_grid_y0_i + 1;
+			const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
+			const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
+			const grid_x1: i64 = grid_x0 + 1;
+			const grid_y1: i64 = grid_y0 + 1;
 
-			const g00_idx: u64 = hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x0_i), @bitCast(noise_grid_y0_i)) & table.grad_mask;
-			const g10_idx: u64 = hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x1_i), @bitCast(noise_grid_y0_i)) & table.grad_mask;
-			const g01_idx: u64 = hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x0_i), @bitCast(noise_grid_y1_i)) & table.grad_mask;
-			const g11_idx: u64 = hash.custom_hash_v1_no_init(cfg.seed, @bitCast(noise_grid_x1_i), @bitCast(noise_grid_y1_i)) & table.grad_mask;
+			const g_idx_00: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y0)) & table.grad_mask;
+			const g_idx_10: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y0)) & table.grad_mask;
+			const g_idx_01: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y1)) & table.grad_mask;
+			const g_idx_11: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y1)) & table.grad_mask;
 
-			const g00x: VecI = @splat(table.grad_table[0][g00_idx]);
-			const g10x: VecI = @splat(table.grad_table[0][g10_idx]);
-			const g01x: VecI = @splat(table.grad_table[0][g01_idx]);
-			const g11x: VecI = @splat(table.grad_table[0][g11_idx]);
+			const g_x_00: VecI = @splat(table.grad_table[0][g_idx_00]);
+			const g_x_10: VecI = @splat(table.grad_table[0][g_idx_10]);
+			const g_x_01: VecI = @splat(table.grad_table[0][g_idx_01]);
+			const g_x_11: VecI = @splat(table.grad_table[0][g_idx_11]);
 
-			const g00y_s: i16 = table.grad_table[1][g00_idx];
-			const g10y_s: i16 = table.grad_table[1][g10_idx];
-			const g01y_s: i16 = table.grad_table[1][g01_idx];
-			const g11y_s: i16 = table.grad_table[1][g11_idx];
+			const g_y_00: i16 = table.grad_table[1][g_idx_00];
+			const g_y_10: i16 = table.grad_table[1][g_idx_10];
+			const g_y_01: i16 = table.grad_table[1][g_idx_01];
+			const g_y_11: i16 = table.grad_table[1][g_idx_11];
 
-			fill_x_cache(
-				&sx_cache_arr,
-				&i_x0_cache_arr,
-				&delta_ix_cache_arr,
-				vec_count,
-				values_cache_vec,
-				smooth_cache_vec,
-				g00x,
-				g10x,
-				g01x,
-				g11x,
-			);
+			inline for (0..vec_count) |vec_idx| {
+				const x_rel_vec: VecI = x_rel_cache_vec[vec_idx];
+				const s_x_vec: VecI = s_x_cache_vec[vec_idx];
+				const x_rel_m1: VecI = x_rel_vec - @as(VecI, @splat(0x7FFF));
+
+				const dx_00 = vector_math.mul_q15_round(g_x_00, x_rel_vec);
+				const dx_10 = vector_math.mul_q15_round(g_x_10, x_rel_m1);
+				const dx_01 = vector_math.mul_q15_round(g_x_01, x_rel_vec);
+				const dx_11 = vector_math.mul_q15_round(g_x_11, x_rel_m1);
+
+				s_x_cache_arr[vec_idx] = s_x_vec;
+				i_x0_cache_arr[vec_idx] = lerp_vec_q15(dx_00, dx_10, s_x_vec);
+				delta_i_x_cache_arr[vec_idx] = lerp_vec_q15(dx_01 - dx_00, dx_11 - dx_10, s_x_vec);
+			}
 
 			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
 			var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
 			for (0..min_dim) |_| {
-				const y_rel: i16 = cfg.cached_values[y_idx];
-				const sy_ly: i16 = cfg.cached_smoothed_values[y_idx];
-
+				const y_rel: i16 = cached_values[y_idx];
 				const y_rel_m1: i16 = y_rel - 0x7FFF;
+				const s_y: i16 = cached_smoothed_values[y_idx];
+				
+				const dy_00 = mul_q15_scalar(g_y_00, y_rel);
+				const dy_10 = mul_q15_scalar(g_y_10, y_rel);
+				const dy_01 = mul_q15_scalar(g_y_01, y_rel_m1);
+				const dy_11 = mul_q15_scalar(g_y_11, y_rel_m1);
 
-				const dy00 = mul_q15_scalar(g00y_s, y_rel);
-        const dy10 = mul_q15_scalar(g10y_s, y_rel);
-        const dy01 = mul_q15_scalar(g01y_s, y_rel_m1);
-        const dy11 = mul_q15_scalar(g11y_s, y_rel_m1);
+				const i_y0_scalar = lerp_scalar_q15(dy_00, dy_01, s_y);
+				const delta_i_y_scalar = lerp_scalar_q15(dy_10 - dy_00, dy_11 - dy_01, s_y);
 
-        const i_y0_s = lerp_scalar_q15(dy00, dy01, sy_ly);
-        const delta_iy_s = lerp_scalar_q15(dy10 - dy00, dy11 - dy01, sy_ly);
+				const s_y_vec: VecI = @splat(s_y);
+				const i_y0: VecI = @splat(i_y0_scalar);
+				const delta_i_y: VecI = @splat(delta_i_y_scalar);
 
-        const y_sy: VecI = @splat(sy_ly);
-        const i_y0: VecI = @splat(i_y0_s);
-        const delta_iy: VecI = @splat(delta_iy_s);
-
-        const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
+				const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
 
         inline for (0..vec_count) |vec_idx| {
-          const term_x = i_x0_cache_arr[vec_idx] + vector_math.mul_q15_round(y_sy, delta_ix_cache_arr[vec_idx]);
-          const term_y = i_y0 + vector_math.mul_q15_round(sx_cache_arr[vec_idx], delta_iy);
+          const base = i_x0_cache_arr[vec_idx] + i_y0;
+          
+          const c_x = vector_math.mul_q15_round(s_y_vec, delta_i_x_cache_arr[vec_idx]);
+          const c_y = vector_math.mul_q15_round(s_x_cache_arr[vec_idx], delta_i_y);
 
-          out_row_vec[vec_idx] = term_y + term_x;
+          out_row_vec[vec_idx] = base + (c_x + c_y);
         }
 
-        y_idx = (y_idx -% 1) & sc_m;
-        out_row_ptr += cs_u;
+				y_idx = (y_idx -% 1) & sc_m;
+				out_row_ptr += cs_u;
 			}
 		}
 	}

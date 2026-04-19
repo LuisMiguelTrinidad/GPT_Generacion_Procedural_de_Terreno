@@ -6,7 +6,9 @@ const registry = @import("../noise/perlin/registry.zig");
 
 pub fn run_warmup(
 	comptime mode: registry.OptMode,
-	perlin_cfg: anytype,
+	seed: u64,
+	cached_values: anytype,
+	cached_smoothed_values: anytype,
 	chunk_buffer: anytype,
 	warmup_chunk_count: u64,
 ) !void {
@@ -25,7 +27,10 @@ pub fn run_warmup(
 			mode,
 			config.CHUNK_SIZE,
 			config.SCALE,
-			perlin_cfg,
+			config.OCTAVES,
+			seed,
+			cached_values,
+			cached_smoothed_values,
 			world_origin,
 			world_origin,
 			chunk_buffer,
@@ -36,7 +41,9 @@ pub fn run_warmup(
 
 pub fn run_benchmark_pass(
 	comptime mode: registry.OptMode,
-	perlin_cfg: anytype,
+	seed: u64,
+	cached_values: anytype,
+	cached_smoothed_values: anytype,
 	chunk_buffer: anytype,
 	benchmark_chunk_count: u64,
 ) !report.BenchmarkResult {
@@ -61,7 +68,10 @@ pub fn run_benchmark_pass(
 			mode,
 			config.CHUNK_SIZE,
 			config.SCALE,
-			perlin_cfg,
+			config.OCTAVES,
+			seed,
+			cached_values,
+			cached_smoothed_values,
 			world_origin,
 			world_origin,
 			chunk_buffer,

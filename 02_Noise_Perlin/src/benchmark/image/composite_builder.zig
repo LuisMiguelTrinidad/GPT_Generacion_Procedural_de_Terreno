@@ -7,7 +7,9 @@ pub fn build_composite_gray8(
 	comptime mode: registry.OptMode,
 	comptime Sample: type,
 	comptime sample_to_gray8: fn (Sample) u8,
-	perlin_cfg: anytype,
+	seed: u64,
+	cached_values: anytype,
+	cached_smoothed_values: anytype,
 	chunk_buffer: []Sample,
 	allocator: std.mem.Allocator,
 	save_chunks_per_side: u64,
@@ -16,7 +18,7 @@ pub fn build_composite_gray8(
 
 	var gradient_cache_buffer: [mode_scratch.gradient_cache_bytes]u8 align(mode_scratch.gradient_cache_alignment) = undefined;
 
-	const cs_usize: usize = @intCast(perlin_cfg.chunk_size);
+	const cs_usize: usize = @intCast(config.CHUNK_SIZE);
 	const chunks_per_side_usize: usize = @intCast(save_chunks_per_side);
 
 	const width: usize = cs_usize * chunks_per_side_usize;
@@ -46,7 +48,10 @@ pub fn build_composite_gray8(
 				mode,
 				config.CHUNK_SIZE,
 				config.SCALE,
-				perlin_cfg,
+				config.OCTAVES,
+				seed,
+				cached_values,
+				cached_smoothed_values,
 				world_x,
 				world_y,
 				chunk_buffer,

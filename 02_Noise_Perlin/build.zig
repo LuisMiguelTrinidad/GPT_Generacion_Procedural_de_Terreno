@@ -32,20 +32,11 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    // 1. GARANTIZAR LLVM: Obligatorio si usas intrínsecos de LLVM.
     exe.use_llvm = true;
     exe.use_lld = true;
 
-    // 2. OPTIMIZACIONES: LTO y Stripping solo fuera de Debug.
-    if (optimize == .ReleaseFast) {
-        exe.want_lto = true;
-        exe.root_module.strip = true;
-        exe.lto = .full;
-    }
-
     b.installArtifact(exe);
-
-    // 3. PASO DE EJECUCIÓN (zig build run)
+    
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
 
