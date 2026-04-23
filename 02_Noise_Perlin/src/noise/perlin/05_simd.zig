@@ -30,7 +30,6 @@ comptime {
 }
 
 inline fn lerp_vec(a: VecF, b: VecF, t: VecF) VecF {
-
 	return (b - a) * t + a;
 }
 

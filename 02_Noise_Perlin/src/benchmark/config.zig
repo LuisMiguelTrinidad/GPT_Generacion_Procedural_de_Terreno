@@ -1,7 +1,7 @@
 pub const SEED: u64 = 0xDEADBEEFCAFEBABE;
 pub const CHUNK_SIZE: u64 = 256;
 pub const SCALE: u64 = 256;
-pub const OCTAVES: u64 = 4;
+pub const OCTAVES: u64 = 2;
 pub const PERSISTENCE: f32 = 2.0;
 pub const LACUNARITY: f32 = 2.0;
 
@@ -10,4 +10,6 @@ pub const CPU_FREQ: f64 = 4_600_000_000.0;      // Cambiar según la CPU
 
 pub const WARMUP_CHUNK_COUNT: u64 = 1_000;
 pub const BENCHMARK_CHUNK_COUNT: u64 = 10_000;
-pub const SAVE_CHUNKS_PER_SIDE: u64 = 0;
+pub const SAVE_CHUNKS_PER_SIDE: u64 = 2;
+
+pub const BENCHMARK_SWEEP_VALUES = [_]u64{256};

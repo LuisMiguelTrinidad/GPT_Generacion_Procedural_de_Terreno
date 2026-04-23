@@ -6,17 +6,19 @@ const registry = @import("../noise/perlin/registry.zig");
 
 pub fn run_warmup(
 	comptime mode: registry.OptMode,
+	comptime chunk_size: u64,
+	comptime scale: u64,
 	seed: u64,
 	cached_values: anytype,
 	cached_smoothed_values: anytype,
 	chunk_buffer: anytype,
 	warmup_chunk_count: u64,
 ) !void {
-	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
+	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, chunk_size, scale);
 	const gradient_cache_bytes = mode_scratch.gradient_cache_bytes;
 	const gradient_cache_alignment = mode_scratch.gradient_cache_alignment;
 
-	const chunk_size_i64: i64 = @as(i64, @intCast(config.CHUNK_SIZE));
+	const chunk_size_i64: i64 = @as(i64, @intCast(chunk_size));
 
 	var gradient_cache_buffer: [gradient_cache_bytes]u8 align(gradient_cache_alignment) = undefined;
 
@@ -25,8 +27,8 @@ pub fn run_warmup(
 		const world_origin: i64 = chunk_idx_i64 * chunk_size_i64;
 		try registry.generate_chunk2d(
 			mode,
-			config.CHUNK_SIZE,
-			config.SCALE,
+			chunk_size,
+			scale,
 			config.OCTAVES,
 			seed,
 			cached_values,
@@ -41,6 +43,8 @@ pub fn run_warmup(
 
 pub fn run_benchmark_pass(
 	comptime mode: registry.OptMode,
+	comptime chunk_size: u64,
+	comptime scale: u64,
 	seed: u64,
 	cached_values: anytype,
 	cached_smoothed_values: anytype,
@@ -48,11 +52,11 @@ pub fn run_benchmark_pass(
 	benchmark_chunk_count: u64,
 ) !report.BenchmarkResult {
 
-	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, config.CHUNK_SIZE, config.SCALE);
+	const mode_scratch = comptime registry.get_mode_scratch_spec(mode, chunk_size, scale);
 	const gradient_cache_bytes = mode_scratch.gradient_cache_bytes;
 	const gradient_cache_alignment = mode_scratch.gradient_cache_alignment;
 
-	const chunk_size_i64: i64 = @as(i64, @intCast(config.CHUNK_SIZE));
+	const chunk_size_i64: i64 = @as(i64, @intCast(chunk_size));
 
 	var gradient_cache_buffer: [gradient_cache_bytes]u8 align(gradient_cache_alignment) = undefined;
 
@@ -66,8 +70,8 @@ pub fn run_benchmark_pass(
 
 		try registry.generate_chunk2d(
 			mode,
-			config.CHUNK_SIZE,
-			config.SCALE,
+			chunk_size,
+			scale,
 			config.OCTAVES,
 			seed,
 			cached_values,

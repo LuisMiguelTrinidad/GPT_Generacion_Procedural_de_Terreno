@@ -22,11 +22,11 @@ pub fn workspace_bytes(comptime chunk_size: u64, comptime scale: u64) usize {
 
 comptime {
 	if (@popCount(@as(u64, LANES)) != 1) {
-		@compileError("O6 requires LANES to be a power of two");
-	}
-	if (@popCount(@as(u64, RequiredAlignment)) != 1) {
-		@compileError("RequiredAlignment must be a non-zero power of two");
-	}
+	@compileError("O6 requires LANES to be a power of two");
+  }
+  if (@popCount(@as(u64, RequiredAlignment)) != 1) {
+    @compileError("RequiredAlignment must be a non-zero power of two");
+    }
 }
 
 // Scalar Q0.15 multiply helper.
@@ -45,13 +45,11 @@ pub inline fn perlin_prepare_seed(seed: u64) u64 {
 	return hash.custom_hash_init_v1(seed);
 }
 
-// Asumiendo que mul_q15_round suma 0x4000 para redondear a la fracción más cercana.
-// Ajusta el '+ 0x4000' si tu vector_math usa una lógica de truncamiento distinta.
 inline fn lerp_scalar_q15(a: i16, b: i16, t: i16) i16 {
-    const diff: i32 = @as(i32, b) - @as(i32, a);
-    const t32: i32 = @as(i32, t);
-    const mul_round = @as(i16, @intCast((t32 * diff) >> 15));
-    return a + mul_round;
+	const diff: i32 = @as(i32, b) - @as(i32, a);
+	const t32: i32 = @as(i32, t);
+	const mul_round = @as(i16, @intCast((t32 * diff) >> 15));
+	return a + mul_round;
 }
 
 pub inline fn perlin_prepare_cached_values(
@@ -62,40 +60,40 @@ pub inline fn perlin_prepare_cached_values(
 ) void {
 	comptime {
 		if ((@popCount(scale) != 1)) {
-			@compileError("O6 requires SCALE to be a power of two");
-		}
-		if ((@min(chunk_size, scale) % LANES) != 0) {
-			@compileError("O6 requires min(CHUNK_SIZE, SCALE) to be a multiple of LANES");
+		@compileError("O6 requires SCALE to be a power of two");
+	}
+	if ((@min(chunk_size, scale) % LANES) != 0) {
+		@compileError("O6 requires min(CHUNK_SIZE, SCALE) to be a multiple of LANES");
 		}
 	}
 
 	for (0..scale) |i| {
 		values_buf[i] = @as(i16, @intCast(i)) << (15 - @ctz(scale));
 		smoothed_buf[i] = @as(i16, @intFromFloat(
-			@as(f32, @floatFromInt(0x7FFF)) * math.smooth_step(
-				@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(scale))
-			)
+		@as(f32, @floatFromInt(0x7FFF)) * math.smooth_step(
+		@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(scale))
+		)
 		));
 	}
 }
 
 pub fn perlin_generate_chunk2d(
-	seed: u64,
-	comptime chunk_size: u64,
-	comptime scale: u64,
-	noalias cached_values: []const i16,
-	noalias cached_smoothed_values: []const i16,
-	world_x: i64,
-	world_y: i64,
-	noalias out_buffer: []i16,
+  seed: u64,
+  comptime chunk_size: u64,
+  comptime scale: u64,
+  noalias cached_values: []const i16,
+  noalias cached_smoothed_values: []const i16,
+  world_x: i64,
+  world_y: i64,
+noalias out_buffer: []i16,
 ) !void {
 	// Verificar alineación de coordenadas mundiales para SIMD
-	const lane_mask: u64 = LANES - 1; 
+	const lane_mask: u64 = LANES - 1;
 	const wx_u: u64 = @bitCast(world_x);
 	const wy_u: u64 = @bitCast(world_y);
 
 	if (((wx_u | wy_u) & lane_mask) != 0) {
-			return error.WorldCoordinatesNotVectorAligned;
+		return error.WorldCoordinatesNotVectorAligned;
 	}
 
 	const initialized_seed: u64 = hash.custom_hash_init_v1(seed);
@@ -129,67 +127,70 @@ pub fn perlin_generate_chunk2d(
 	var delta_i_x_cache_arr: [vec_count]VecI = undefined;
 
 	for (0..n_cells) |gy| {
-		const noise_local_tile_y_u: u64 = n_cells - gy - 1;
-		const arr_world_tile_y_u: u64 = noise_local_tile_y_u << sc_l;
+	const noise_local_tile_y_u: u64 = n_cells - gy - 1;
+	const arr_world_tile_y_u: u64 = noise_local_tile_y_u << sc_l;
 
-		for (0..n_cells) |gx| {
-			const arr_world_tile_x_u: u64 = gx << sc_l;
-			const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
-			const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
-			const grid_x1: i64 = grid_x0 + 1;
-			const grid_y1: i64 = grid_y0 + 1;
+	for (0..n_cells) |gx| {
+		const arr_world_tile_x_u: u64 = gx << sc_l;
+		const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
+		const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
+		const grid_x1: i64 = grid_x0 + 1;
+		const grid_y1: i64 = grid_y0 + 1;
 
-			const g_idx_00: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y0)) & table.grad_mask;
-			const g_idx_10: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y0)) & table.grad_mask;
-			const g_idx_01: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y1)) & table.grad_mask;
-			const g_idx_11: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y1)) & table.grad_mask;
+		const g_idx_00: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y0)) & table.grad_mask;
+		const g_idx_10: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y0)) & table.grad_mask;
+		const g_idx_01: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y1)) & table.grad_mask;
+		const g_idx_11: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y1)) & table.grad_mask;
 
-			const g_x_00: VecI = @splat(table.grad_table[0][g_idx_00]);
-			const g_x_10: VecI = @splat(table.grad_table[0][g_idx_10]);
-			const g_x_01: VecI = @splat(table.grad_table[0][g_idx_01]);
-			const g_x_11: VecI = @splat(table.grad_table[0][g_idx_11]);
+		const g_x_00: VecI = @splat(table.grad_table[0][g_idx_00]);
+		const g_x_10: VecI = @splat(table.grad_table[0][g_idx_10]);
+		const g_x_01: VecI = @splat(table.grad_table[0][g_idx_01]);
+		const g_x_11: VecI = @splat(table.grad_table[0][g_idx_11]);
 
-			const g_y_00: i16 = table.grad_table[1][g_idx_00];
-			const g_y_10: i16 = table.grad_table[1][g_idx_10];
-			const g_y_01: i16 = table.grad_table[1][g_idx_01];
-			const g_y_11: i16 = table.grad_table[1][g_idx_11];
+		const g_y_00: i16 = table.grad_table[1][g_idx_00];
+		const g_y_10: i16 = table.grad_table[1][g_idx_10];
+		const g_y_01: i16 = table.grad_table[1][g_idx_01];
+		const g_y_11: i16 = table.grad_table[1][g_idx_11];
 
-			inline for (0..vec_count) |vec_idx| {
-				const x_rel_vec: VecI = x_rel_cache_vec[vec_idx];
-				const s_x_vec: VecI = s_x_cache_vec[vec_idx];
-				const x_rel_m1: VecI = x_rel_vec - @as(VecI, @splat(0x7FFF));
+		inline for (0..vec_count) |vec_idx| {
+			const x_rel_vec: VecI = x_rel_cache_vec[vec_idx];
+			const s_x_vec: VecI = s_x_cache_vec[vec_idx];
+			const x_rel_m1: VecI = x_rel_vec - @as(VecI, @splat(0x7FFF));
 
-				const dx_00 = vector_math.mul_q15_round(g_x_00, x_rel_vec);
-				const dx_10 = vector_math.mul_q15_round(g_x_10, x_rel_m1);
-				const dx_01 = vector_math.mul_q15_round(g_x_01, x_rel_vec);
-				const dx_11 = vector_math.mul_q15_round(g_x_11, x_rel_m1);
+			const dx_00 = vector_math.mul_q15_round(g_x_00, x_rel_vec);
+			const dx_10 = vector_math.mul_q15_round(g_x_10, x_rel_m1);
+			const dx_01 = vector_math.mul_q15_round(g_x_01, x_rel_vec);
+			const dx_11 = vector_math.mul_q15_round(g_x_11, x_rel_m1);
 
-				s_x_cache_arr[vec_idx] = s_x_vec;
-				i_x0_cache_arr[vec_idx] = lerp_vec_q15(dx_00, dx_10, s_x_vec);
-				delta_i_x_cache_arr[vec_idx] = lerp_vec_q15(dx_01 - dx_00, dx_11 - dx_10, s_x_vec);
-			}
+			const i_x0_vec = lerp_vec_q15(dx_00, dx_10, s_x_vec);
+			const delta_i_x_vec = lerp_vec_q15(dx_01, dx_11, s_x_vec) - i_x0_vec;
 
-			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
-			var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
+			s_x_cache_arr[vec_idx] = s_x_vec;
+			i_x0_cache_arr[vec_idx] = i_x0_vec;
+			delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
+		}
 
-			for (0..min_dim) |_| {
-				const y_rel: i16 = cached_values[y_idx];
-				const y_rel_m1: i16 = y_rel - 0x7FFF;
-				const s_y: i16 = cached_smoothed_values[y_idx];
-				
-				const dy_00 = mul_q15_scalar(g_y_00, y_rel);
-				const dy_10 = mul_q15_scalar(g_y_10, y_rel);
-				const dy_01 = mul_q15_scalar(g_y_01, y_rel_m1);
-				const dy_11 = mul_q15_scalar(g_y_11, y_rel_m1);
+		var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
+		var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
-				const i_y0_scalar = lerp_scalar_q15(dy_00, dy_01, s_y);
-				const delta_i_y_scalar = lerp_scalar_q15(dy_10 - dy_00, dy_11 - dy_01, s_y);
+		for (0..min_dim) |_| {
+			const y_rel: i16 = cached_values[y_idx];
+			const y_rel_m1: i16 = y_rel - 0x7FFF;
+			const s_y: i16 = cached_smoothed_values[y_idx];
 
-				const s_y_vec: VecI = @splat(s_y);
-				const i_y0: VecI = @splat(i_y0_scalar);
-				const delta_i_y: VecI = @splat(delta_i_y_scalar);
+			const dy_00 = mul_q15_scalar(g_y_00, y_rel);
+			const dy_10 = mul_q15_scalar(g_y_10, y_rel);
+			const dy_01 = mul_q15_scalar(g_y_01, y_rel_m1);
+			const dy_11 = mul_q15_scalar(g_y_11, y_rel_m1);
 
-				const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
+			const i_y0_scalar = lerp_scalar_q15(dy_00, dy_01, s_y);
+			const delta_i_y_scalar = lerp_scalar_q15(dy_10, dy_11, s_y) - i_y0_scalar;
+
+			const s_y_vec: VecI = @splat(s_y);
+			const i_y0: VecI = @splat(i_y0_scalar);
+			const delta_i_y: VecI = @splat(delta_i_y_scalar);
+
+			const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
 
         inline for (0..vec_count) |vec_idx| {
           const base = i_x0_cache_arr[vec_idx] + i_y0;
@@ -197,7 +198,7 @@ pub fn perlin_generate_chunk2d(
           const c_x = vector_math.mul_q15_round(s_y_vec, delta_i_x_cache_arr[vec_idx]);
           const c_y = vector_math.mul_q15_round(s_x_cache_arr[vec_idx], delta_i_y);
 
-          out_row_vec[vec_idx] = base + (c_x + c_y);
+          out_row_vec[vec_idx] = base + c_x + c_y;
         }
 
 				y_idx = (y_idx -% 1) & sc_m;
@@ -205,4 +206,4 @@ pub fn perlin_generate_chunk2d(
 			}
 		}
 	}
-}
+} 
