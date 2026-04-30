@@ -5,7 +5,7 @@ const math = @import("../../core/shared/math.zig");
 
 const mode_meta = @import("mode_meta.zig");
 
-pub const RequiredAlignment: u29 = @alignOf(f32);
+pub const RequiredAlignment: u29 = mode_meta.CacheLineBytes;
 pub const sample_kind: mode_meta.SampleKind = .f32;
 
 pub inline fn perlin_prepare_seed(seed: u64) u64 {

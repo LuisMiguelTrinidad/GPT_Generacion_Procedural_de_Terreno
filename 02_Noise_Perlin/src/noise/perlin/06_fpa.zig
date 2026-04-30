@@ -8,10 +8,8 @@ const mode_meta = @import("mode_meta.zig");
 
 const LANES: u8 = @as(u8, @intCast(vector_math.lanes_for(i16)));
 const VecI = @Vector(LANES, i16);
-const SIMD_ALIGNMENT: u29 = @as(u29, @intCast(vector_math.simd_vector_bytes()));
-const VEC_ALIGN: u29 = @alignOf(VecI);
 
-pub const RequiredAlignment: u29 = @max(VEC_ALIGN, SIMD_ALIGNMENT);
+pub const RequiredAlignment: u29 = mode_meta.CacheLineBytes;
 pub const sample_kind: mode_meta.SampleKind = .i16;
 
 pub fn workspace_bytes(comptime chunk_size: u64, comptime scale: u64) usize {

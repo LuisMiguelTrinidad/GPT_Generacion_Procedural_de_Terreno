@@ -5,8 +5,8 @@ const math = @import("../../core/shared/math.zig");
 
 const mode_meta = @import("mode_meta.zig");
 
-pub const RequiredAlignment: u29 = @alignOf(f32);
-pub const GradientCacheAlignment: u29 = @alignOf([2]f32);
+pub const RequiredAlignment: u29 = mode_meta.CacheLineBytes;
+pub const GradientCacheAlignment: u29 = mode_meta.CacheLineBytes;
 pub const sample_kind: mode_meta.SampleKind = .f32;
 
 pub fn gradient_cache_bytes(comptime chunk_size: u64, comptime scale: u64) usize {
@@ -45,12 +45,12 @@ pub fn perlin_generate_chunk2d(
   seed: u64,
   comptime chunk_size: u64,
   comptime scale: u64,
-  cached_values: []const f32,
-  cached_smoothed_values: []const f32,
+  noalias cached_values: []const f32,
+  noalias cached_smoothed_values: []const f32,
   world_x: i64,
   world_y: i64,
-  out_buffer: []f32,
-  gradient_cache_buf: []u8,
+  noalias out_buffer: []f32,
+  noalias gradient_cache_buf: []u8,
 ) !void {
   const initialized_seed: u64 = hash.custom_hash_init_v1(seed);
 

@@ -60,7 +60,7 @@ pub fn get_mode_scratch_spec(
 		},
 		else => .{
 			.gradient_cache_bytes = 0,
-			.gradient_cache_alignment = 1
+			.gradient_cache_alignment = mode_meta.CacheLineBytes,
 		},
 	};
 }
