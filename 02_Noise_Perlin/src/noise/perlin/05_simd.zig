@@ -71,6 +71,8 @@ pub fn perlin_generate_chunk2d(
 	world_y: i64,
 	noalias out_buffer: []f32,
 ) !void {
+	@setEvalBranchQuota(20000);
+	@setFloatMode(.optimized);
 	// Verificar alineación de coordenadas mundiales para SIMD
 	const lane_mask: u64 = LANES - 1; 
 	const wx_u: u64 = @bitCast(world_x);
@@ -116,6 +118,7 @@ pub fn perlin_generate_chunk2d(
 
 		for (0..n_cells) |gx| {
 			const arr_world_tile_x_u: u64 = gx << sc_l;
+
 			const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
 			const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
 			const grid_x1: i64 = grid_x0 + 1;
@@ -137,7 +140,7 @@ pub fn perlin_generate_chunk2d(
 			const g_y_11: f32 = table.grad_table[1][g_idx_11];
 
 			const one: VecF = @splat(1.0);
-			inline for (0..vec_count) |vec_idx| {
+			for (0..vec_count) |vec_idx| {
 				const x_rel_vec: VecF = x_rel_cache_vec[vec_idx];
 				const s_x_vec: VecF = s_x_cache_vec[vec_idx];
 
@@ -171,8 +174,9 @@ pub fn perlin_generate_chunk2d(
 				const out_row_vec: [*]VecF = @as([*]VecF, @ptrCast(@alignCast(out_row_ptr)));
 
 				inline for (0..vec_count) |vec_idx| {
-					const c_x: VecF = i_x0_cache_arr[vec_idx] + (s_y_vec * delta_i_x_cache_arr[vec_idx]);
-					const c_y: VecF = i_y0 + (s_x_cache_arr[vec_idx] * delta_i_y);
+					const c_x: VecF = @mulAdd(VecF, s_y_vec, delta_i_x_cache_arr[vec_idx], i_x0_cache_arr[vec_idx]);
+					const c_y: VecF = @mulAdd(VecF, s_x_cache_arr[vec_idx], delta_i_y, i_y0);
+					
 					out_row_vec[vec_idx] = c_x + c_y;
 				}
 

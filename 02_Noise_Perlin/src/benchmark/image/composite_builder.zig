@@ -48,7 +48,6 @@ pub fn build_composite_gray8(
 				mode,
 				config.CHUNK_SIZE,
 				config.SCALE,
-				config.OCTAVES,
 				seed,
 				cached_values,
 				cached_smoothed_values,

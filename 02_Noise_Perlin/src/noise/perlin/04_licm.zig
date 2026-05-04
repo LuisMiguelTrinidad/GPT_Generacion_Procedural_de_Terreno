@@ -93,6 +93,7 @@ pub fn perlin_generate_chunk2d(
 
 		for (0..n_cells) |gx| {
 			const arr_world_tile_x_u: u64 = gx << sc_l;
+
 			const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
 			const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
 			const grid_x1: i64 = grid_x0 + 1;
@@ -141,12 +142,14 @@ pub fn perlin_generate_chunk2d(
 				const dy_01: f32 = g_y_01 * y_rel_m1;
 				const dy_11: f32 = g_y_11 * y_rel_m1;
 
-				const i_y0: f32 = @mulAdd(f32, s_y, dy_01 - dy_00, dy_00);
-				const delta_i_y: f32 = @mulAdd(f32, s_y, (dy_11 - dy_01) - (dy_10 - dy_00), dy_10 - dy_00);
+				const i_y0: f32 = lerp_scalar(dy_00, dy_01, s_y);
+				const delta_i_y: f32 = lerp_scalar(dy_10 - dy_00, dy_11 - dy_01, s_y);
 
-				for (0..elem_count) |idx| {
+				inline for (0..elem_count) |idx| {
 					const c_x: f32 = @mulAdd(f32, s_y, delta_i_x_cache_arr[idx], i_x0_cache_arr[idx]);
-					out_row_ptr[idx] = @mulAdd(f32, s_x_cache_arr[idx], delta_i_y, i_y0 + c_x);
+					const c_y: f32 = @mulAdd(f32, s_x_cache_arr[idx], delta_i_y, i_y0);
+
+					out_row_ptr[idx] = c_y + c_x;
 				}
 
 				y_idx = (y_idx -% 1) & sc_m;
