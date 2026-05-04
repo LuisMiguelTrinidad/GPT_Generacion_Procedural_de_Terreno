@@ -49,5 +49,5 @@ pub inline fn mul_add_q15_round(acc: anytype, a: @TypeOf(acc), b: @TypeOf(acc)) 
 		return @"llvm.aarch64.neon.sqrdmlah.v8i16"(acc, a, b);
 	}
 
-	return mul_q15_round(a, b) + acc;
+	return mul_q15_round(acc, a) + b;
 }

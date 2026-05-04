@@ -126,77 +126,77 @@ noalias out_buffer: []i16,
 	var delta_i_x_cache_arr: [vec_count]VecI = undefined;
 
 	for (0..n_cells) |gy| {
-	const noise_local_tile_y_u: u64 = n_cells - gy - 1;
-	const arr_world_tile_y_u: u64 = noise_local_tile_y_u << sc_l;
+		const noise_local_tile_y_u: u64 = n_cells - gy - 1;
+		const arr_world_tile_y_u: u64 = noise_local_tile_y_u << sc_l;
 
-	for (0..n_cells) |gx| {
-		const arr_world_tile_x_u: u64 = gx << sc_l;
-		const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
-		const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
-		const grid_x1: i64 = grid_x0 + 1;
-		const grid_y1: i64 = grid_y0 + 1;
+		for (0..n_cells) |gx| {
+			const arr_world_tile_x_u: u64 = gx << sc_l;
+			const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
+			const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
+			const grid_x1: i64 = grid_x0 + 1;
+			const grid_y1: i64 = grid_y0 + 1;
 
-		const g_idx_00: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y0)) & table.grad_mask;
-		const g_idx_10: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y0)) & table.grad_mask;
-		const g_idx_01: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y1)) & table.grad_mask;
-		const g_idx_11: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y1)) & table.grad_mask;
+			const g_idx_00: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y0)) & table.grad_mask;
+			const g_idx_10: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y0)) & table.grad_mask;
+			const g_idx_01: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x0), @bitCast(grid_y1)) & table.grad_mask;
+			const g_idx_11: u64 = hash.custom_hash_v1_no_init(initialized_seed, @bitCast(grid_x1), @bitCast(grid_y1)) & table.grad_mask;
 
-		const g_x_00: VecI = @splat(table.grad_table[0][g_idx_00]);
-		const g_x_10: VecI = @splat(table.grad_table[0][g_idx_10]);
-		const g_x_01: VecI = @splat(table.grad_table[0][g_idx_01]);
-		const g_x_11: VecI = @splat(table.grad_table[0][g_idx_11]);
+			const g_x_00: VecI = @splat(table.grad_table[0][g_idx_00]);
+			const g_x_10: VecI = @splat(table.grad_table[0][g_idx_10]);
+			const g_x_01: VecI = @splat(table.grad_table[0][g_idx_01]);
+			const g_x_11: VecI = @splat(table.grad_table[0][g_idx_11]);
 
-		const g_y_00: i16 = table.grad_table[1][g_idx_00];
-		const g_y_10: i16 = table.grad_table[1][g_idx_10];
-		const g_y_01: i16 = table.grad_table[1][g_idx_01];
-		const g_y_11: i16 = table.grad_table[1][g_idx_11];
+			const g_y_00: i16 = table.grad_table[1][g_idx_00];
+			const g_y_10: i16 = table.grad_table[1][g_idx_10];
+			const g_y_01: i16 = table.grad_table[1][g_idx_01];
+			const g_y_11: i16 = table.grad_table[1][g_idx_11];
 
-		for (0..vec_count) |vec_idx| {
-			const x_rel_vec: VecI = x_rel_cache_vec[vec_idx];
-			const s_x_vec: VecI = s_x_cache_vec[vec_idx];
-			const x_rel_m1: VecI = x_rel_vec - @as(VecI, @splat(0x7FFF));
+			for (0..vec_count) |vec_idx| {
+				const x_rel_vec: VecI = x_rel_cache_vec[vec_idx];
+				const s_x_vec: VecI = s_x_cache_vec[vec_idx];
+				const x_rel_m1: VecI = x_rel_vec - @as(VecI, @splat(0x7FFF));
 
-			const dx_00 = vector_math.mul_q15_round(g_x_00, x_rel_vec);
-			const dx_10 = vector_math.mul_q15_round(g_x_10, x_rel_m1);
-			const dx_01 = vector_math.mul_q15_round(g_x_01, x_rel_vec);
-			const dx_11 = vector_math.mul_q15_round(g_x_11, x_rel_m1);
+				const dx_00 = vector_math.mul_q15_round(g_x_00, x_rel_vec);
+				const dx_10 = vector_math.mul_q15_round(g_x_10, x_rel_m1);
+				const dx_01 = vector_math.mul_q15_round(g_x_01, x_rel_vec);
+				const dx_11 = vector_math.mul_q15_round(g_x_11, x_rel_m1);
 
-			const i_x0_vec = lerp_vec_q15(dx_00, dx_10, s_x_vec);
-			const delta_i_x_vec = lerp_vec_q15(dx_01, dx_11, s_x_vec) - i_x0_vec;
+				const i_x0_vec = lerp_vec_q15(dx_00, dx_10, s_x_vec);
+				const delta_i_x_vec = lerp_vec_q15(dx_01, dx_11, s_x_vec) - i_x0_vec;
 
-			s_x_cache_arr[vec_idx] = s_x_vec;
-			i_x0_cache_arr[vec_idx] = i_x0_vec;
-			delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
-		}
-
-		var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
-		var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
-
-		for (0..min_dim) |_| {
-			const y_rel: i16 = cached_values[y_idx];
-			const y_rel_m1: i16 = y_rel - 0x7FFF;
-			const s_y: i16 = cached_smoothed_values[y_idx];
-
-			const dy_00 = mul_q15_scalar(g_y_00, y_rel);
-			const dy_10 = mul_q15_scalar(g_y_10, y_rel);
-			const dy_01 = mul_q15_scalar(g_y_01, y_rel_m1);
-			const dy_11 = mul_q15_scalar(g_y_11, y_rel_m1);
-
-			const i_y0_scalar = lerp_scalar_q15(dy_00, dy_01, s_y);
-			const delta_i_y_scalar = lerp_scalar_q15(dy_10, dy_11, s_y) - i_y0_scalar;
-
-			const s_y_vec: VecI = @splat(s_y);
-			const i_y0: VecI = @splat(i_y0_scalar);
-			const delta_i_y: VecI = @splat(delta_i_y_scalar);
-
-			const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
-
-			inline for (0..vec_count) |vec_idx| {
-				const c_x = vector_math.mul_add_q15_round(s_y_vec, delta_i_x_cache_arr[vec_idx], i_x0_cache_arr[vec_idx]);
-				const c_y = vector_math.mul_add_q15_round(s_x_cache_arr[vec_idx], delta_i_y, i_y0);
-
-				out_row_vec[vec_idx] = c_x + c_y;
+				s_x_cache_arr[vec_idx] = s_x_vec;
+				i_x0_cache_arr[vec_idx] = i_x0_vec;
+				delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
 			}
+
+			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
+			var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
+
+			for (0..min_dim) |_| {
+				const y_rel: i16 = cached_values[y_idx];
+				const y_rel_m1: i16 = y_rel - 0x7FFF;
+				const s_y: i16 = cached_smoothed_values[y_idx];
+
+				const dy_00 = mul_q15_scalar(g_y_00, y_rel);
+				const dy_10 = mul_q15_scalar(g_y_10, y_rel);
+				const dy_01 = mul_q15_scalar(g_y_01, y_rel_m1);
+				const dy_11 = mul_q15_scalar(g_y_11, y_rel_m1);
+
+				const i_y0_scalar = lerp_scalar_q15(dy_00, dy_01, s_y);
+				const delta_i_y_scalar = lerp_scalar_q15(dy_10, dy_11, s_y) - i_y0_scalar;
+
+				const s_y_vec: VecI = @splat(s_y);
+				const i_y0: VecI = @splat(i_y0_scalar);
+				const delta_i_y: VecI = @splat(delta_i_y_scalar);
+
+				const out_row_vec: [*]VecI = @as([*]VecI, @ptrCast(@alignCast(out_row_ptr)));
+
+				inline for (0..vec_count) |vec_idx| {
+					const c_x = vector_math.mul_add_q15_round(s_y_vec, delta_i_x_cache_arr[vec_idx], i_x0_cache_arr[vec_idx]);
+					const c_y = vector_math.mul_add_q15_round(s_x_cache_arr[vec_idx], delta_i_y, i_y0);
+
+					out_row_vec[vec_idx] = c_x + c_y;
+				}
 
 				y_idx = (y_idx -% 1) & sc_m;
 				out_row_ptr += cs_u;

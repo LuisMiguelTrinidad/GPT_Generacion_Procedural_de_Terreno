@@ -149,9 +149,12 @@ pub fn perlin_generate_chunk2d(
 				const dx_01: VecF = g_x_01 * x_rel_vec;
 				const dx_11: VecF = g_x_11 * (x_rel_vec - one);
 
+				const i_x0_vec: VecF = lerp_vec(dx_00, dx_10, s_x_vec);
+				const delta_i_x_vec: VecF = lerp_vec(dx_01, dx_11, s_x_vec) - i_x0_vec;
+
 				s_x_cache_arr[vec_idx] = s_x_vec;
-				i_x0_cache_arr[vec_idx] = lerp_vec(dx_00, dx_10, s_x_vec);
-				delta_i_x_cache_arr[vec_idx] = lerp_vec(dx_01 - dx_00, dx_11 - dx_10, s_x_vec);
+				i_x0_cache_arr[vec_idx] = i_x0_vec;
+				delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
 			}
 
 			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
@@ -167,9 +170,12 @@ pub fn perlin_generate_chunk2d(
 				const dy_10: f32 = g_y_10 * y_rel;
 				const dy_11: f32 = g_y_11 * y_rel_m1;
 
+				const i_y0_scalar: f32 = lerp_scalar(dy_00, dy_01, s_y);
+				const delta_i_y_scalar: f32 = lerp_scalar(dy_10, dy_11, s_y) - i_y0_scalar;
+
 				const s_y_vec: VecF = @splat(s_y);
-				const i_y0: VecF = @splat(lerp_scalar(dy_00, dy_01, s_y));
-				const delta_i_y: VecF = @splat(lerp_scalar(dy_10 - dy_00, dy_11 - dy_01, s_y));
+				const i_y0: VecF = @splat(i_y0_scalar);
+				const delta_i_y: VecF = @splat(delta_i_y_scalar);
 
 				const out_row_vec: [*]VecF = @as([*]VecF, @ptrCast(@alignCast(out_row_ptr)));
 

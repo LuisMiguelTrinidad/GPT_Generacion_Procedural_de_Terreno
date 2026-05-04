@@ -124,9 +124,12 @@ pub fn perlin_generate_chunk2d(
 				const dx_01: f32 = g_x_01 * x_rel;
 				const dx_11: f32 = g_x_11 * x_rel_m1;
 
+				const i_x0: f32 = lerp_scalar(dx_00, dx_10, s_x);
+				const delta_i_x: f32 = lerp_scalar(dx_01, dx_11, s_x) - i_x0;
+
 				s_x_cache_arr[idx] = s_x;
-				i_x0_cache_arr[idx] = lerp_scalar(dx_00, dx_10, s_x);
-				delta_i_x_cache_arr[idx] = lerp_scalar(dx_01 - dx_00, dx_11 - dx_10, s_x);
+				i_x0_cache_arr[idx] = i_x0;
+				delta_i_x_cache_arr[idx] = delta_i_x;
 			}
 
 			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
