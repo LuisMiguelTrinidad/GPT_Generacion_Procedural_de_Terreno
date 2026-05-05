@@ -82,16 +82,19 @@ pub fn run_mode_f32(
 	benchmark_chunk_count: u64,
 	save_chunks_per_side: u64,
 ) !void {
-	const sweep_values = config.BENCHMARK_SWEEP_VALUES;
-	const dim_count = sweep_values.len;
-	var avg_cells: [dim_count * dim_count]?f64 = [_]?f64{null} ** (dim_count * dim_count);
-	var max_cells: [dim_count * dim_count]?f64 = [_]?f64{null} ** (dim_count * dim_count);
+	const chunk_sizes = config.BENCHMARK_CHUNK_SIZES;
+	const scales = config.BENCHMARK_SCALES;
+	const row_count = chunk_sizes.len;
+	const col_count = scales.len;
+	const cell_count = row_count * col_count;
+	var avg_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
+	var max_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
 
 	try stdout.print("\nModo {s}\n", .{mode_str});
 
-	inline for (sweep_values, 0..) |chunk_size, row_idx| {
-		inline for (sweep_values, 0..) |scale, col_idx| {
-			const flat_idx = row_idx * dim_count + col_idx;
+	inline for (chunk_sizes, 0..) |chunk_size, row_idx| {
+		inline for (scales, 0..) |scale, col_idx| {
+			const flat_idx = row_idx * col_count + col_idx;
 			const metrics = try benchmark_cell_metrics(
 				mode,
 				allocator,
@@ -110,13 +113,15 @@ pub fn run_mode_f32(
 	try report.print_comparison_table(
 		stdout,
 		"Promedio de cycles/punto",
-		sweep_values[0..],
+		chunk_sizes[0..],
+		scales[0..],
 		avg_cells[0..],
 	);
 	try report.print_comparison_table(
 		stdout,
 		"Maximo de cycles/punto (mejor chunk)",
-		sweep_values[0..],
+		chunk_sizes[0..],
+		scales[0..],
 		max_cells[0..],
 	);
 

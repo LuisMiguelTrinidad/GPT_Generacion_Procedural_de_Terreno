@@ -10,4 +10,5 @@ pub const WARMUP_CHUNK_COUNT: u64 = 1_000;
 pub const BENCHMARK_CHUNK_COUNT: u64 = 10_000;
 pub const SAVE_CHUNKS_PER_SIDE: u64 = 2;
 
-pub const BENCHMARK_SWEEP_VALUES = [_]u64{64, 128, 256, 512};
+pub const BENCHMARK_CHUNK_SIZES = [_]u64{256};
+pub const BENCHMARK_SCALES = [_]u64{16, 32, 64, 128, 256, 512, 1024};

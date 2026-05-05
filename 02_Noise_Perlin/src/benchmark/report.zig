@@ -38,10 +38,10 @@ fn print_horizontal(stdout: anytype, width: usize) !void {
   }
 }
 
-fn print_border(stdout: anytype, dim_count: usize) !void {
+fn print_border(stdout: anytype, col_count: usize) !void {
   try stdout.print("{s}", .{TOP_LEFT});
   try print_horizontal(stdout, HEADER_WIDTH + 2);
-  for (0..dim_count) |_| {
+  for (0..col_count) |_| {
     // Usamos TOP_JUNCTION en lugar de JUNCTION
     try stdout.print("{s}", .{TOP_JUNCTION}); 
     try print_horizontal(stdout, VALUE_WIDTH + 2);
@@ -49,20 +49,20 @@ fn print_border(stdout: anytype, dim_count: usize) !void {
   try stdout.print("{s}\n", .{TOP_RIGHT});
 }
 
-fn print_bottom_border(stdout: anytype, dim_count: usize) !void {
+fn print_bottom_border(stdout: anytype, col_count: usize) !void {
   try stdout.print("{s}", .{BOTTOM_LEFT});
   try print_horizontal(stdout, HEADER_WIDTH + 2);
-  for (0..dim_count) |_| {
+  for (0..col_count) |_| {
     try stdout.print("{s}", .{BOTTOM_JUNCTION});
     try print_horizontal(stdout, VALUE_WIDTH + 2);
   }
   try stdout.print("{s}\n", .{BOTTOM_RIGHT});
 }
 
-fn print_separator(stdout: anytype, dim_count: usize) !void {
+fn print_separator(stdout: anytype, col_count: usize) !void {
   try stdout.print("{s}", .{LEFT_JUNCTION}); 
   try print_horizontal(stdout, HEADER_WIDTH + 2);
-  for (0..dim_count) |_| {
+  for (0..col_count) |_| {
     try stdout.print("{s}", .{JUNCTION});
     try print_horizontal(stdout, VALUE_WIDTH + 2);
   }
@@ -98,29 +98,35 @@ pub fn max_cycles_per_point(total_chunks: u64, total_points: u64, result: Benchm
 pub fn print_comparison_table(
   stdout: anytype,
   title: []const u8,
-  sweep_values: []const u64,
+  chunk_sizes: []const u64,
+  scales: []const u64,
   cycles_cells: []const ?f64,
 ) !void {
-  const dim_count = sweep_values.len;
-  if (cycles_cells.len != dim_count * dim_count) {
+  if (chunk_sizes.len == 0 or scales.len == 0) {
+    return error.InvalidComparisonTableShape;
+  }
+
+  const row_count = chunk_sizes.len;
+  const col_count = scales.len;
+  if (cycles_cells.len != row_count * col_count) {
     return error.InvalidComparisonTableShape;
   }
 
   try stdout.print("\n{s}\n", .{title});
-  try print_border(stdout, dim_count);
+  try print_border(stdout, col_count);
 
   try stdout.print("{s} {s:>11} {s}", .{ VERTICAL, "CHUNK/SCALE", VERTICAL });
-  for (sweep_values) |scale| {
+  for (scales) |scale| {
     try stdout.print(" {d:>10} {s}", .{ scale, VERTICAL });
   }
   try stdout.print("\n", .{});
 
-  try print_separator(stdout, dim_count);
+  try print_separator(stdout, col_count);
 
-  for (sweep_values, 0..) |chunk_size, row_idx| {
+  for (chunk_sizes, 0..) |chunk_size, row_idx| {
     try stdout.print("{s} {d:>11} {s}", .{ VERTICAL, chunk_size, VERTICAL });
-    for (sweep_values, 0..) |_, col_idx| {
-      const flat_idx = row_idx * dim_count + col_idx;
+    for (scales, 0..) |_, col_idx| {
+      const flat_idx = row_idx * col_count + col_idx;
       if (cycles_cells[flat_idx]) |cycles| {
         try stdout.print(" {d:>10.4} {s}", .{ cycles, VERTICAL });
       } else {
@@ -130,5 +136,5 @@ pub fn print_comparison_table(
     try stdout.print("\n", .{});
   }
 
-  try print_bottom_border(stdout, dim_count);
+  try print_bottom_border(stdout, col_count);
 }
