@@ -2,8 +2,8 @@ pub const SEED: u64 = 0xDEADBEEFCAFEBABE;
 pub const CHUNK_SIZE: u64 = 256;
 pub const SCALE: u64 = 256;
 
-pub const CPU_BASE_FREQ: f64 = 19_200_000.0; // aarch64: frecuencia del contador de referencia (CNTVCT). x86_64: frecuencia base estimada.
-pub const CPU_FREQ: f64 = 2_200_000_000.0; // x86_64: frecuencia turbo estimada. aarch64: usada para estimar ciclos reales a frecuencia máxima.
+pub const CPU_BASE_FREQ: f64 = 3_400_000_000.0; // aarch64: frecuencia del contador de referencia (CNTVCT). x86_64: frecuencia base estimada.
+pub const CPU_FREQ: f64 = 4_600_000_000.0; // x86_64: frecuencia turbo estimada. aarch64: usada para estimar ciclos reales a frecuencia máxima.
 
 
 pub const WARMUP_CHUNK_COUNT: u64 = 1_000;
