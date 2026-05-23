@@ -5,37 +5,11 @@ const report = @import("../report.zig");
 const runner = @import("../runner.zig");
 const image_writer = @import("image_writer.zig");
 const registry = @import("../../noise/perlin/registry.zig");
-const vector_math = @import("../../core/i16/vector_math.zig");
 
 const CellMetrics = struct {
 	avg_cycles_per_point: f64,
 	max_cycles_per_point: f64,
 };
-
-fn supports_chunk_scale(
-	comptime mode: registry.OptMode,
-	comptime chunk_size: u64,
-	comptime scale: u64,
-) bool {
-	const lanes: u64 = @as(u64, @intCast(vector_math.lanes_for(i16)));
-	const aligned_min_dim = (@min(chunk_size, scale) % lanes) == 0;
-
-	return switch (mode) {
-		.O6 => aligned_min_dim,
-		.O7 => blk: {
-			if (!aligned_min_dim) {
-				break :blk false;
-			}
-			if (config.OCTAVES == 0) {
-				break :blk false;
-			}
-
-			const octave_shift: u6 = @as(u6, @intCast(config.OCTAVES - 1));
-			break :blk (scale >> octave_shift) >= lanes;
-		},
-		else => true,
-	};
-}
 
 fn benchmark_cell_metrics(
 	comptime mode: registry.OptMode,
@@ -108,55 +82,50 @@ pub fn run_mode_i16(
 	benchmark_chunk_count: u64,
 	save_chunks_per_side: u64,
 ) !void {
-	const sweep_values = config.BENCHMARK_SWEEP_VALUES;
-	const dim_count = sweep_values.len;
-	var avg_cells: [dim_count * dim_count]?f64 = [_]?f64{null} ** (dim_count * dim_count);
-	var max_cells: [dim_count * dim_count]?f64 = [_]?f64{null} ** (dim_count * dim_count);
+	const chunk_sizes = config.BENCHMARK_CHUNK_SIZES;
+	const scales = config.BENCHMARK_SCALES;
+	const row_count = chunk_sizes.len;
+	const col_count = scales.len;
+	const cell_count = row_count * col_count;
+	var avg_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
+	var max_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
 
 	try stdout.print("\nModo {s}\n", .{mode_str});
 
-	inline for (sweep_values, 0..) |chunk_size, row_idx| {
-		inline for (sweep_values, 0..) |scale, col_idx| {
-			const flat_idx = row_idx * dim_count + col_idx;
-			if (comptime supports_chunk_scale(mode, chunk_size, scale)) {
-				const metrics = try benchmark_cell_metrics(
-					mode,
-					allocator,
-					spec,
-					chunk_size,
-					scale,
-					warmup_chunk_count,
-					benchmark_chunk_count,
-				);
+	inline for (chunk_sizes, 0..) |chunk_size, row_idx| {
+		inline for (scales, 0..) |scale, col_idx| {
+			const flat_idx = row_idx * col_count + col_idx;
+			const metrics = try benchmark_cell_metrics(
+				mode,
+				allocator,
+				spec,
+				chunk_size,
+				scale,
+				warmup_chunk_count,
+				benchmark_chunk_count,
+			);
 
-				avg_cells[flat_idx] = metrics.avg_cycles_per_point;
-				max_cells[flat_idx] = metrics.max_cycles_per_point;
-			}
+			avg_cells[flat_idx] = metrics.avg_cycles_per_point;
+			max_cells[flat_idx] = metrics.max_cycles_per_point;
 		}
 	}
 
 	try report.print_comparison_table(
 		stdout,
 		"Promedio de cycles/punto",
-		sweep_values[0..],
+		chunk_sizes[0..],
+		scales[0..],
 		avg_cells[0..],
 	);
 	try report.print_comparison_table(
 		stdout,
 		"Maximo de cycles/punto (mejor chunk)",
-		sweep_values[0..],
+		chunk_sizes[0..],
+		scales[0..],
 		max_cells[0..],
 	);
 
 	if (save_chunks_per_side == 0) {
-		return;
-	}
-
-	if (comptime !supports_chunk_scale(mode, config.CHUNK_SIZE, config.SCALE)) {
-		try stderr.print(
-			"Aviso: se omite PNG porque CHUNK_SIZE={d}, SCALE={d} no es valido para {s}.\n",
-			.{ config.CHUNK_SIZE, config.SCALE, mode_str },
-		);
 		return;
 	}
 

@@ -16,14 +16,14 @@ pub fn main() !void {
 
 	if (args.len != 2) {
 		try stderr.print(
-			"USO: {s} <modo>\nModos disponibles: O0 | O1 | O2 | O3 | O4 | O5 | O6 | O7\n",
+			"USO: {s} <modo>\nModos disponibles: O0 | O1 | O2 | O3 | O4 | O5 | O6\n",
 			.{args[0]},
 		);
 		return error.InvalidArguments;
 	}
 
 	const mode = engine.parse_mode(args[1]) orelse {
-		try stderr.print("ERROR: Modo desconocido. Opciones: O0 | O1 | O2 | O3 | O4 | O5 | O6 | O7\n", .{});
+		try stderr.print("ERROR: Modo desconocido. Opciones: O0 | O1 | O2 | O3 | O4 | O5 | O6\n", .{});
 		return error.InvalidMode;
 	};
 

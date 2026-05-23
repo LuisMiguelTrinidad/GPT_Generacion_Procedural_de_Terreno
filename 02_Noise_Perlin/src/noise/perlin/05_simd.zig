@@ -71,6 +71,8 @@ pub fn perlin_generate_chunk2d(
 	world_y: i64,
 	noalias out_buffer: []f32,
 ) !void {
+	@setEvalBranchQuota(20000);
+	@setFloatMode(.optimized);
 	// Verificar alineación de coordenadas mundiales para SIMD
 	const lane_mask: u64 = LANES - 1; 
 	const wx_u: u64 = @bitCast(world_x);
@@ -116,6 +118,7 @@ pub fn perlin_generate_chunk2d(
 
 		for (0..n_cells) |gx| {
 			const arr_world_tile_x_u: u64 = gx << sc_l;
+
 			const grid_x0: i64 = grid_base_x + @as(i64, @intCast(gx));
 			const grid_y0: i64 = grid_base_y + @as(i64, @intCast(gy));
 			const grid_x1: i64 = grid_x0 + 1;
@@ -137,7 +140,7 @@ pub fn perlin_generate_chunk2d(
 			const g_y_11: f32 = table.grad_table[1][g_idx_11];
 
 			const one: VecF = @splat(1.0);
-			inline for (0..vec_count) |vec_idx| {
+			for (0..vec_count) |vec_idx| {
 				const x_rel_vec: VecF = x_rel_cache_vec[vec_idx];
 				const s_x_vec: VecF = s_x_cache_vec[vec_idx];
 
@@ -146,9 +149,12 @@ pub fn perlin_generate_chunk2d(
 				const dx_01: VecF = g_x_01 * x_rel_vec;
 				const dx_11: VecF = g_x_11 * (x_rel_vec - one);
 
+				const i_x0_vec: VecF = lerp_vec(dx_00, dx_10, s_x_vec);
+				const delta_i_x_vec: VecF = lerp_vec(dx_01, dx_11, s_x_vec) - i_x0_vec;
+
 				s_x_cache_arr[vec_idx] = s_x_vec;
-				i_x0_cache_arr[vec_idx] = lerp_vec(dx_00, dx_10, s_x_vec);
-				delta_i_x_cache_arr[vec_idx] = lerp_vec(dx_01 - dx_00, dx_11 - dx_10, s_x_vec);
+				i_x0_cache_arr[vec_idx] = i_x0_vec;
+				delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
 			}
 
 			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
@@ -164,15 +170,19 @@ pub fn perlin_generate_chunk2d(
 				const dy_10: f32 = g_y_10 * y_rel;
 				const dy_11: f32 = g_y_11 * y_rel_m1;
 
+				const i_y0_scalar: f32 = lerp_scalar(dy_00, dy_01, s_y);
+				const delta_i_y_scalar: f32 = lerp_scalar(dy_10, dy_11, s_y) - i_y0_scalar;
+
 				const s_y_vec: VecF = @splat(s_y);
-				const i_y0: VecF = @splat(lerp_scalar(dy_00, dy_01, s_y));
-				const delta_i_y: VecF = @splat(lerp_scalar(dy_10 - dy_00, dy_11 - dy_01, s_y));
+				const i_y0: VecF = @splat(i_y0_scalar);
+				const delta_i_y: VecF = @splat(delta_i_y_scalar);
 
 				const out_row_vec: [*]VecF = @as([*]VecF, @ptrCast(@alignCast(out_row_ptr)));
 
 				inline for (0..vec_count) |vec_idx| {
-					const c_x: VecF = i_x0_cache_arr[vec_idx] + (s_y_vec * delta_i_x_cache_arr[vec_idx]);
-					const c_y: VecF = i_y0 + (s_x_cache_arr[vec_idx] * delta_i_y);
+					const c_x: VecF = @mulAdd(VecF, s_y_vec, delta_i_x_cache_arr[vec_idx], i_x0_cache_arr[vec_idx]);
+					const c_y: VecF = @mulAdd(VecF, s_x_cache_arr[vec_idx], delta_i_y, i_y0);
+					
 					out_row_vec[vec_idx] = c_x + c_y;
 				}
 
