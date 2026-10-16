@@ -74,7 +74,7 @@ pub fn perlin_generate_chunk2d(
 	@setEvalBranchQuota(20000);
 	@setFloatMode(.optimized);
 	// Verificar alineación de coordenadas mundiales para SIMD
-	const lane_mask: u64 = LANES - 1; 
+	const lane_mask: u64 = LANES - 1;
 	const wx_u: u64 = @bitCast(world_x);
 	const wy_u: u64 = @bitCast(world_y);
 
@@ -157,7 +157,7 @@ pub fn perlin_generate_chunk2d(
 				delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
 			}
 
-			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
+			var y_idx: u64 = (min_dim -% 1 -% arr_world_off_y_u) & sc_m;
 			var out_row_ptr: [*]f32 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
 			for (0..min_dim) |_| {
@@ -182,7 +182,7 @@ pub fn perlin_generate_chunk2d(
 				inline for (0..vec_count) |vec_idx| {
 					const c_x: VecF = @mulAdd(VecF, s_y_vec, delta_i_x_cache_arr[vec_idx], i_x0_cache_arr[vec_idx]);
 					const c_y: VecF = @mulAdd(VecF, s_x_cache_arr[vec_idx], delta_i_y, i_y0);
-					
+
 					out_row_vec[vec_idx] = c_x + c_y;
 				}
 

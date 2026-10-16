@@ -25,7 +25,7 @@
     .fingerprint = 0x1ba5754c6884c5b5, // Changing this has security and trust implications.
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.17.0",
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
     // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
@@ -33,8 +33,8 @@
     // internet connectivity.
     .dependencies = .{
         .zigimg = .{
-            .url = "git+https://github.com/zigimg/zigimg.git#7b98e82621fe302a9edc147df1191f4d1b7ff7a5",
-            .hash = "zigimg-0.1.0-8_eo2qWHFwA-S24SH7x7NplPii0EbIQiUfDrimgA6rzN",
+            .url = "git+https://github.com/zigimg/zigimg.git#f5fe07487dc17ab40e5daa38211e5782a23f4776",
+            .hash = "zigimg-0.1.0-8_eo2r1LGACI-MYWvYRGp6ZRgQFnecakzOrMZkkwbT42",
         },
     },
     .paths = .{

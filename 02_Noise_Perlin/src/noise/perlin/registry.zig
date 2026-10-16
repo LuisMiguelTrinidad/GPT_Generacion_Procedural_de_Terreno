@@ -10,12 +10,8 @@ const perlin_O5 = @import("05_simd.zig");
 const perlin_O6 = @import("06_fpa.zig");
 
 const mode_modules = .{
-	.O0 = perlin_O0,
-	.O1 = perlin_O1,
-	.O2 = perlin_O2,
-	.O3 = perlin_O3,
-	.O4 = perlin_O4,
-	.O5 = perlin_O5,
+	.O0 = perlin_O0, .O1 = perlin_O1, .O2 = perlin_O2,
+	.O3 = perlin_O3, .O4 = perlin_O4, .O5 = perlin_O5,
 	.O6 = perlin_O6,
 };
 

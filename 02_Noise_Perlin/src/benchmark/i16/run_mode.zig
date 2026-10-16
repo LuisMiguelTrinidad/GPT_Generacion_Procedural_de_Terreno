@@ -87,8 +87,8 @@ pub fn run_mode_i16(
 	const row_count = chunk_sizes.len;
 	const col_count = scales.len;
 	const cell_count = row_count * col_count;
-	var avg_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
-	var max_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
+	var avg_cells: [cell_count]?f64 = @splat(null);
+	var max_cells: [cell_count]?f64 = @splat(null);
 
 	try stdout.print("\nModo {s}\n", .{mode_str});
 

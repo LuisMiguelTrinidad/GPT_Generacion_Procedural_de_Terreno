@@ -21,15 +21,14 @@ fn benchmark_cell_metrics(
 	benchmark_chunk_count: u64,
 ) !CellMetrics {
 	const mod = spec.module;
-	const alloc_alignment = comptime std.mem.Alignment.fromByteUnits(spec.required_alignment);
 
 	const scale_usize: usize = @intCast(scale);
 	const chunk_size_usize: usize = @intCast(chunk_size);
 
-	const values_buffer = try allocator.alignedAlloc(f32, alloc_alignment, scale_usize);
+	const values_buffer = try allocator.alignedAlloc(f32, std.mem.Alignment.fromByteUnits(64), scale_usize);
 	defer allocator.free(values_buffer);
 
-	const smoothed_values_buffer = try allocator.alignedAlloc(f32, alloc_alignment, scale_usize);
+	const smoothed_values_buffer = try allocator.alignedAlloc(f32,  std.mem.Alignment.fromByteUnits(64), scale_usize);
 	defer allocator.free(smoothed_values_buffer);
 
 	mod.perlin_prepare_cached_values(
@@ -39,7 +38,7 @@ fn benchmark_cell_metrics(
 		scale,
 	);
 
-	const chunk_buffer = try allocator.alignedAlloc(f32, alloc_alignment, chunk_size_usize * chunk_size_usize);
+	const chunk_buffer = try allocator.alignedAlloc(f32,  std.mem.Alignment.fromByteUnits(64), chunk_size_usize * chunk_size_usize);
 	defer allocator.free(chunk_buffer);
 
 	try runner.run_warmup(
@@ -87,8 +86,8 @@ pub fn run_mode_f32(
 	const row_count = chunk_sizes.len;
 	const col_count = scales.len;
 	const cell_count = row_count * col_count;
-	var avg_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
-	var max_cells: [cell_count]?f64 = [_]?f64{null} ** cell_count;
+	var avg_cells: [cell_count]?f64 = @splat(null);
+	var max_cells: [cell_count]?f64 = @splat(null);
 
 	try stdout.print("\nModo {s}\n", .{mode_str});
 

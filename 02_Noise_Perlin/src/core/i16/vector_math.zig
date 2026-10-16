@@ -1,7 +1,7 @@
 const arch_caps = @import("../shared/arch_caps.zig");
 
 extern fn @"llvm.x86.avx2.pmul.hr.sw"(a: @Vector(16, i16), b: @Vector(16, i16)) @Vector(16, i16);
-extern fn @"llvm.x86.avx512.pmulhrsw.512"(a: @Vector(32, i16), b: @Vector(32, i16)) @Vector(32, i16);
+extern fn @"llvm.x86.avx512.pmul.hr.sw.512"(a: @Vector(32, i16), b: @Vector(32, i16)) @Vector(32, i16);
 extern fn @"llvm.aarch64.neon.sqrdmulh.v8i16"(a: @Vector(8, i16), b: @Vector(8, i16)) @Vector(8, i16);
 extern fn @"llvm.aarch64.neon.sqrdmlah.v8i16"(acc: @Vector(8, i16), a: @Vector(8, i16), b: @Vector(8, i16)) @Vector(8, i16);
 
@@ -19,7 +19,7 @@ pub inline fn mul_q15_round(a: anytype, b: @TypeOf(a)) @TypeOf(a) {
 	const neon_case = comptime arch_caps.has_arm_neon and info.len == 8;
 
 	if (avx512_case) {
-      return @"llvm.x86.avx512.pmulhrsw.512"(a, b);
+      return @"llvm.x86.avx512.pmul.hr.sw.512"(a, b);
   } else if (avx2_case) {
       return @"llvm.x86.avx2.pmul.hr.sw"(a, b);
   } else if (neon_case) {

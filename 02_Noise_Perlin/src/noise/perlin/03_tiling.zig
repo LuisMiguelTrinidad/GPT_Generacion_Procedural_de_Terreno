@@ -49,8 +49,8 @@ pub fn perlin_generate_chunk2d(
   const cs_u: u64 = chunk_size;
   const sc_u: u64 = scale;
   const sc_m: u64 = sc_u - 1;
-  const sc_l: u6  = @as(u6, @intCast(@ctz(sc_u))); 
-  
+  const sc_l: u6  = @as(u6, @intCast(@ctz(sc_u)));
+
   const grid_base_x: i64 = world_x >> sc_l;
   const grid_base_y: i64 = world_y >> sc_l;
 
@@ -80,7 +80,7 @@ pub fn perlin_generate_chunk2d(
 
 			for (0..min_dim) |ly| {
         const noise_local_y_u: u64 = min_dim - ly - 1;
-          const y_idx_local: u64 = (noise_local_y_u - arr_world_off_y_u) & sc_m;
+        const y_idx_local: u64 = (noise_local_y_u -% arr_world_off_y_u) & sc_m;
         const y_rel: f32 = cached_values[y_idx_local];
 
         const matrix_offset: u64 = arr_world_tile_x_u + (arr_world_tile_y_u + ly) * cs_u;

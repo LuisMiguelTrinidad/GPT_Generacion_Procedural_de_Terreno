@@ -121,9 +121,9 @@ noalias out_buffer: []i16,
 	const x_rel_cache_vec: [*]const VecI = @ptrCast(@alignCast(x_rel_base));
 	const s_x_cache_vec: [*]const VecI = @ptrCast(@alignCast(s_x_base));
 
-	var s_x_cache_arr: [vec_count]VecI = undefined;
-	var i_x0_cache_arr: [vec_count]VecI = undefined;
-	var delta_i_x_cache_arr: [vec_count]VecI = undefined;
+	var s_x_cache_arr: [vec_count]VecI align(64) = undefined;
+	var i_x0_cache_arr: [vec_count]VecI align(64) = undefined;
+	var delta_i_x_cache_arr: [vec_count]VecI align(64) = undefined;
 
 	for (0..n_cells) |gy| {
 		const noise_local_tile_y_u: u64 = n_cells - gy - 1;
@@ -169,7 +169,7 @@ noalias out_buffer: []i16,
 				delta_i_x_cache_arr[vec_idx] = delta_i_x_vec;
 			}
 
-			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
+			var y_idx: u64 = (min_dim -% 1 -% arr_world_off_y_u) & sc_m;
 			var out_row_ptr: [*]i16 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
 			for (0..min_dim) |_| {
@@ -203,4 +203,4 @@ noalias out_buffer: []i16,
 			}
 		}
 	}
-} 
+}

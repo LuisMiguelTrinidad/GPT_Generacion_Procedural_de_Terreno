@@ -2,17 +2,18 @@ const std = @import("std");
 
 const engine = @import("benchmark/engine.zig");
 
-pub fn main() !void {
-	var stdout_writer = std.fs.File.stdout().writer(&.{});
-	var stderr_writer = std.fs.File.stderr().writer(&.{});
+pub fn main(init: std.process.Init.Minimal) !void {
+	const io = std.Options.debug_io;
+	var stdout_writer = std.Io.File.stdout().writer(io, &.{});
+	var stderr_writer = std.Io.File.stderr().writer(io, &.{});
 
 	const stdout = &stdout_writer.interface;
 	const stderr = &stderr_writer.interface;
 
 	const allocator = std.heap.page_allocator;
 
-	const args = try std.process.argsAlloc(allocator);
-	defer std.process.argsFree(allocator, args);
+	const args = try init.args.toSlice(allocator);
+	defer allocator.free(args);
 
 	if (args.len != 2) {
 		try stderr.print(

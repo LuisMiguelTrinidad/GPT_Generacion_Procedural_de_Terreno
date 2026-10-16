@@ -59,6 +59,7 @@ pub fn perlin_generate_chunk2d(
 	world_y: i64,
 	noalias out_buffer: []f32,
 ) !void {
+	@setEvalBranchQuota(1000000);
 	@setFloatMode(.optimized);
 	const initialized_seed: u64 = hash.custom_hash_init_v1(seed);
 
@@ -132,7 +133,7 @@ pub fn perlin_generate_chunk2d(
 				delta_i_x_cache_arr[idx] = delta_i_x;
 			}
 
-			var y_idx: u64 = (min_dim - 1 - arr_world_off_y_u) & sc_m;
+			var y_idx: u64 = (min_dim -% 1 -% arr_world_off_y_u) & sc_m;
 			var out_row_ptr: [*]f32 = out_buffer.ptr + arr_world_tile_x_u + (arr_world_tile_y_u << cs_l);
 
 			for (0..min_dim) |_| {
