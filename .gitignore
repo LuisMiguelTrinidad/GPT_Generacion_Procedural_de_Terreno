@@ -8,6 +8,6 @@
 
 **/zig-out/
 **/.zig-cache/
-**/.zig-pkg/
+**/zig-pkg/
 **/output/
 **/logs/

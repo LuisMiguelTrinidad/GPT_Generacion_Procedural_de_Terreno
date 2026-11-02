@@ -4,7 +4,7 @@ Implementación y benchmark de ruido Perlin en Zig, con múltiples variantes de 
 
 ## Requisitos
 
-- Zig `0.15.2`
+- Zig `0.17`
 - CPU con SIMD para modos vectoriales (`O5`, `O6`): AVX2/AVX512BW en `x86_64` o NEON en `aarch64`
 
 ## Instalación y ejecución básica

@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     .optimize = optimize,
   });
 
-    // Módulo interno, creado de forma anónima y no expuesto globalmente
+  // Módulo interno, creado de forma anónima y no expuesto globalmente
   const package_mod = b.createModule(.{
     .root_source_file = b.path("src/root.zig"),
     .target = target,
